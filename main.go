@@ -33,7 +33,6 @@ func main() {
 
 	runner := NewRunner(
 		newInMemoryStorage(),
-		filterMessages,
 		MailSourceFunc(IMAPGetMailFunc),
 		&TelegramForwarder{},
 		logger.With(slog.String("module", "runner")),

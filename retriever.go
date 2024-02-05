@@ -45,8 +45,17 @@ func IMAPGetMailFunc(client ClientConfig) (ClientConfig, []*Message, error) {
 		//	return client, nil, nil
 	}
 
-	uidRange := imap.UIDSetNum(imap.UID(client.LastUID - 10))
-	fetchCmd := c.Fetch(uidRange, fetchOptions)
+	var uidSet imap.UIDSet
+	if len(client.Filters) > 0 {
+		uidSet, err = getUIDSetBySearchCriteria(c, client)
+		if err != nil {
+			return client, nil, fmt.Errorf("failed to search message UIDs by criteria: %w", err)
+		}
+	} else {
+		uidSet = imap.UIDSetNum(imap.UID(client.LastUID - 10))
+	}
+
+	fetchCmd := c.Fetch(uidSet, fetchOptions)
 	defer func() {
 		err = errors.Join(err, fetchCmd.Close())
 	}()
@@ -69,11 +78,34 @@ func IMAPGetMailFunc(client ClientConfig) (ClientConfig, []*Message, error) {
 	return client, messages, nil
 }
 
+func getUIDSetBySearchCriteria(c *imapclient.Client, client ClientConfig) (imap.UIDSet, error) {
+	searchCriteria, err := buildSearchCriteria(client.Filters)
+	if err != nil {
+		return nil, fmt.Errorf("search criteria parsing failed: %w", err)
+	}
+	if searchCriteria == nil {
+		return nil, nil
+	}
+
+	searchCmd, err := c.Search(searchCriteria, &imap.SearchOptions{
+		ReturnMin:   false,
+		ReturnMax:   false,
+		ReturnAll:   false,
+		ReturnCount: false,
+		ReturnSave:  false,
+	}).Wait()
+	if err != nil {
+		return nil, fmt.Errorf("search failed: %w", err)
+	}
+
+	uidSet := imap.UIDSetNum(searchCmd.AllUIDs()...)
+	return uidSet, nil
+}
+
 func processMessage(msg *imapclient.FetchMessageData, client ClientConfig) (*Message, error) {
 	var (
 		bodySection imapclient.FetchItemDataBodySection
 		ok          bool
-		err         error
 	)
 
 	for {

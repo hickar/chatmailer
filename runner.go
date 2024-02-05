@@ -44,7 +44,6 @@ type Forwarder interface {
 
 type TaskRunner struct {
 	clientStorage ClientStorage
-	filter        FilterFunc
 	mailSource    MailRetriever
 	forwarder     Forwarder
 	logger        *slog.Logger
@@ -52,14 +51,12 @@ type TaskRunner struct {
 
 func NewRunner(
 	clientStorage ClientStorage,
-	filter FilterFunc,
 	mailRetriever MailRetriever,
 	forwarder Forwarder,
 	logger *slog.Logger,
 ) TaskRunner {
 	return TaskRunner{
 		clientStorage: clientStorage,
-		filter:        filter,
 		mailSource:    mailRetriever,
 		forwarder:     forwarder,
 		logger:        logger,
