@@ -34,7 +34,7 @@ func buildSearchCriteria(filters []string) (*imap.SearchCriteria, error) {
 }
 
 func parseFilter(filterExpr string) (*imap.SearchCriteria, error) {
-	criteria, _, err := parseFilterExpression(nil, []rune(filterExpr), 0)
+	criteria, _, err := parseFilterExpression([]rune(filterExpr), 0)
 	return criteria, err
 }
 
@@ -59,10 +59,11 @@ func parseFilter(filterExpr string) (*imap.SearchCriteria, error) {
 		( Expression )
 */
 
-func parseFilterExpression(criteria *imap.SearchCriteria, filterExpr []rune, i int) (*imap.SearchCriteria, int, error) {
+func parseFilterExpression(filterExpr []rune, i int) (*imap.SearchCriteria, int, error) {
+	var criteria *imap.SearchCriteria
 	var err error
 
-	criteria, i, err = parseFilterTerm(criteria, filterExpr, i)
+	criteria, i, err = parseFilterTerm(filterExpr, i)
 	if err != nil {
 		return nil, i, err
 	}
@@ -85,13 +86,12 @@ func parseFilterExpression(criteria *imap.SearchCriteria, filterExpr []rune, i i
 				return nil, i, err
 			}
 
-			t, i, err = parseFilterTerm(nil, filterExpr, i)
+			t, i, err = parseFilterTerm(filterExpr, i)
 			if err != nil {
 				return nil, i, err
 			}
 
 			criteria = opFunc(criteria, t)
-			i++
 
 		default:
 			return criteria, i + 1, nil
@@ -101,10 +101,11 @@ func parseFilterExpression(criteria *imap.SearchCriteria, filterExpr []rune, i i
 	return criteria, i, nil
 }
 
-func parseFilterTerm(criteria *imap.SearchCriteria, filterExpr []rune, i int) (*imap.SearchCriteria, int, error) {
+func parseFilterTerm(filterExpr []rune, i int) (*imap.SearchCriteria, int, error) {
+	var criteria *imap.SearchCriteria
 	var err error
 
-	criteria, i, err = parseFilterPrimary(criteria, filterExpr, i)
+	criteria, i, err = parseFilterPrimary(filterExpr, i)
 	if err != nil {
 		return nil, i, err
 	}
@@ -127,7 +128,7 @@ func parseFilterTerm(criteria *imap.SearchCriteria, filterExpr []rune, i int) (*
 				return nil, i, err
 			}
 
-			t, i, err = parseFilterExpression(nil, filterExpr, i)
+			t, i, err = parseFilterExpression(filterExpr, i)
 			if err != nil {
 				return nil, i, err
 			}
@@ -143,7 +144,8 @@ func parseFilterTerm(criteria *imap.SearchCriteria, filterExpr []rune, i int) (*
 	return criteria, i, nil
 }
 
-func parseFilterPrimary(criteria *imap.SearchCriteria, filterExpr []rune, i int) (*imap.SearchCriteria, int, error) {
+func parseFilterPrimary(filterExpr []rune, i int) (*imap.SearchCriteria, int, error) {
+	var criteria *imap.SearchCriteria
 	var t *imap.SearchCriteria
 	var err error
 
@@ -156,10 +158,8 @@ parseLoop:
 			i++
 
 		case c == '!':
-			if criteria == nil {
-				criteria = &imap.SearchCriteria{}
-			}
-			t, i, err = parseFilterPrimary(nil, filterExpr, i+1)
+			criteria = &imap.SearchCriteria{}
+			t, i, err = parseFilterPrimary(filterExpr, i+1)
 			if err != nil {
 				return nil, i, err
 			}
@@ -168,7 +168,7 @@ parseLoop:
 			return criteria, i, nil
 
 		case c == '(':
-			return parseFilterExpression(criteria, filterExpr, i+1)
+			return parseFilterExpression(filterExpr, i+1)
 
 		case unicode.IsSpace(c):
 			i++
@@ -187,12 +187,9 @@ parseLoop:
 	if err != nil {
 		return nil, i, err
 	}
-	if flag, ok := flagTokens[strings.ToUpper(t1)]; ok {
-		if criteria == nil {
-			criteria = &imap.SearchCriteria{}
-		}
-
-		return assignFlag(criteria, flag), i, nil
+	if _, ok := flagTokens[strings.ToUpper(t1)]; ok {
+		criteria = &imap.SearchCriteria{}
+		return assignFlag(criteria, strings.ToUpper(t1)), i, nil
 	}
 
 	for i < len(filterExpr) {
@@ -213,9 +210,7 @@ parseLoop:
 			if err != nil {
 				return nil, i, err
 			}
-			if criteria == nil {
-				criteria = &imap.SearchCriteria{}
-			}
+			criteria = &imap.SearchCriteria{}
 
 			return opFunc(criteria, t1, t2), i, nil
 		}
@@ -236,7 +231,7 @@ func parseFilterToken(filterExpr []rune, i int) (string, int, error) {
 			i++
 
 		default:
-			return sb.String(), i + 1, nil
+			return sb.String(), i, nil
 		}
 	}
 
@@ -318,6 +313,18 @@ func parseFilterCmpOp(filterExpr []rune, i int, opChar rune) (filterCmpFunc, int
 type filterCmpFunc func(*imap.SearchCriteria, string, string) *imap.SearchCriteria
 
 func addEqCmpCriteriaOp(c *imap.SearchCriteria, k, v string) *imap.SearchCriteria {
+	if _, ok := msgTokens[k]; ok {
+		if k == "BODY" {
+			c.Body = append(c.Body, v)
+			return c
+		}
+
+		if k == "TEXT" {
+			c.Text = append(c.Text, v)
+			return c
+		}
+	}
+
 	c.Header = append(c.Header, imap.SearchCriteriaHeaderField{
 		Key:   k,
 		Value: v,
@@ -326,26 +333,46 @@ func addEqCmpCriteriaOp(c *imap.SearchCriteria, k, v string) *imap.SearchCriteri
 }
 
 func addNotEqCmpCriteriaOp(c *imap.SearchCriteria, k, v string) *imap.SearchCriteria {
-	c.Not = append(c.Not, imap.SearchCriteria{
-		Header: []imap.SearchCriteriaHeaderField{{
-			Key:   k,
-			Value: v,
-		}},
-	})
+	t := imap.SearchCriteria{}
+
+	if _, ok := msgTokens[k]; ok {
+		if k == "BODY" {
+			t.Body = append(t.Body, v)
+			c.Not = append(c.Not, t)
+			return c
+		}
+
+		if k == "TEXT" {
+			t.Text = append(t.Text, v)
+			c.Not = append(c.Not, t)
+			return c
+		}
+	}
+
+	t.Header = []imap.SearchCriteriaHeaderField{{
+		Key:   k,
+		Value: v,
+	}}
+	c.Not = append(c.Not, t)
 	return c
 }
 
 var flagTokens = map[string]imap.Flag{
-	"JUNK":      imap.FlagJunk,
-	"SEEN":      imap.FlagSeen,
-	"DRAFT":     imap.FlagDraft,
-	"DELETED":   imap.FlagDeleted,
-	"FLAGGED":   imap.FlagFlagged,
-	"PHISHING":  imap.FlagPhishing,
-	"WILDCARD":  imap.FlagWildcard,
-	"FORWARDED": imap.FlagForwarded,
-	"IMPORTANT": imap.FlagImportant,
-	"ANSWERED":  imap.FlagAnswered,
+	"JUNK":       imap.FlagJunk,
+	"SEEN":       imap.FlagSeen,
+	"UNSEEN":     imap.FlagSeen,
+	"DRAFT":      imap.FlagDraft,
+	"UNDRAFT":    imap.FlagDraft,
+	"DELETED":    imap.FlagDeleted,
+	"UNDELETED":  imap.FlagDeleted,
+	"FLAGGED":    imap.FlagFlagged,
+	"UNFLAGGED":  imap.FlagFlagged,
+	"PHISHING":   imap.FlagPhishing,
+	"WILDCARD":   imap.FlagWildcard,
+	"FORWARDED":  imap.FlagForwarded,
+	"IMPORTANT":  imap.FlagImportant,
+	"ANSWERED":   imap.FlagAnswered,
+	"UNANSWERED": imap.FlagAnswered,
 }
 
 var msgTokens = map[string]struct{}{
@@ -383,7 +410,17 @@ func intersectCriteria(c1, c2 *imap.SearchCriteria) *imap.SearchCriteria {
 	return c1
 }
 
-func assignFlag(c *imap.SearchCriteria, flag imap.Flag) *imap.SearchCriteria {
+func assignFlag(c *imap.SearchCriteria, flagToken string) *imap.SearchCriteria {
+	flag, ok := flagTokens[flagToken]
+	if !ok {
+		return c
+	}
+
+	if _, ok := strings.CutPrefix(flagToken, "UN"); ok {
+		c.NotFlag = append(c.NotFlag, flag)
+		return c
+	}
+
 	c.Flag = append(c.Flag, flag)
 	return c
 }
