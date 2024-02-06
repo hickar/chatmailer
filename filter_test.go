@@ -29,7 +29,7 @@ func TestParseFilter(t *testing.T) {
 			filterExpr: []rune("FROM == 'test@test.com'"),
 			expectedOutput: &imap.SearchCriteria{
 				Header: []imap.SearchCriteriaHeaderField{{
-					Key:   "From",
+					Key:   "FROM",
 					Value: "test@test.com",
 				}},
 			},
@@ -38,7 +38,7 @@ func TestParseFilter(t *testing.T) {
 			filterExpr: []rune("FROM == 'test@test.com' && SEEN"),
 			expectedOutput: &imap.SearchCriteria{
 				Header: []imap.SearchCriteriaHeaderField{{
-					Key:   "From",
+					Key:   "FROM",
 					Value: "test@test.com",
 				}},
 				Flag: []imap.Flag{imap.FlagSeen},
@@ -50,20 +50,20 @@ func TestParseFilter(t *testing.T) {
 				Or: [][2]imap.SearchCriteria{{
 					{Flag: []imap.Flag{imap.FlagJunk}},
 					{Header: []imap.SearchCriteriaHeaderField{{
-						Key:   "From",
+						Key:   "FROM",
 						Value: "very.important@contact.com",
 					}}},
 				}},
 			},
 		},
 		{
-			filterExpr: []rune("!(!JUNK || FROM == 'very@important@contact.com)"),
+			filterExpr: []rune("!(!JUNK || FROM == 'very.important@contact.com')"),
 			expectedOutput: &imap.SearchCriteria{
 				Not: []imap.SearchCriteria{{
 					Or: [][2]imap.SearchCriteria{{
 						{NotFlag: []imap.Flag{imap.FlagJunk}},
 						{Header: []imap.SearchCriteriaHeaderField{{
-							Key:   "From",
+							Key:   "FROM",
 							Value: "very.important@contact.com",
 						}}},
 					}},
@@ -74,9 +74,9 @@ func TestParseFilter(t *testing.T) {
 
 	for i, tt := range tests {
 		t.Run(fmt.Sprintf("Case_%d", i), func(t *testing.T) {
-			actual, _, err := parseFilterExpression(tt.filterExpr, 0)
+			actual, _, err := parseFilterExpression(nil, tt.filterExpr, 0)
 			assert.NoError(t, err)
-			assert.Equal(t, tt.expectedOutput, actual)
+			assert.Equal(t, tt.expectedOutput, actual, "failed to parse %q", string(tt.filterExpr))
 		})
 	}
 }
