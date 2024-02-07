@@ -4,55 +4,78 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"mime"
 	"strings"
 
 	"github.com/emersion/go-imap/v2"
 	"github.com/emersion/go-imap/v2/imapclient"
+	"github.com/emersion/go-message/charset"
 	"github.com/emersion/go-message/mail"
 )
 
 // MailRetriever retrieves mail messages from remote mail server.
 type MailRetriever interface {
-	GetMail(ClientConfig) (ClientConfig, []*Message, error)
+	GetMail(ClientConfig) (MailResponse, error)
 }
 
-type MailSourceFunc func(ClientConfig) (ClientConfig, []*Message, error)
+type MailSourceFunc func(ClientConfig) (MailResponse, error)
 
-func (m MailSourceFunc) GetMail(mailCfg ClientConfig) (ClientConfig, []*Message, error) {
+func (m MailSourceFunc) GetMail(mailCfg ClientConfig) (MailResponse, error) {
 	return m(mailCfg)
 }
 
-func IMAPGetMailFunc(client ClientConfig) (ClientConfig, []*Message, error) {
-	c, err := imapclient.DialTLS(client.Address, nil)
+type MailResponse struct {
+	LastUID         uint32
+	LastUIDValidity uint32
+	Messages        []*Message
+}
+
+func IMAPGetMailFunc(client ClientConfig) (MailResponse, error) {
+	var mailResp MailResponse
+
+	c, err := imapclient.DialTLS(client.Address, &imapclient.Options{
+		DebugWriter:           nil,
+		UnilateralDataHandler: &imapclient.UnilateralDataHandler{},
+		WordDecoder:           &mime.WordDecoder{CharsetReader: charset.Reader},
+	})
 	if err != nil {
-		return client, nil, fmt.Errorf("failed to dial %q IMAP server: %w", client.Address, err)
+		return mailResp, err
 	}
 
 	if err = c.Login(client.Login, client.Password).Wait(); err != nil {
-		return client, nil, fmt.Errorf("IMAP authentication failed: %w", err)
+		return mailResp, err
 	}
+
 	mailbox, err := c.Select("inbox", nil).Wait()
 	if err != nil {
-		return client, nil, fmt.Errorf("failed to select mailbox 'inbox': %w", err)
+		return mailResp, err
 	}
-	client.LastUIDValidity = mailbox.UIDValidity
+	mailResp.LastUIDValidity = mailbox.UIDValidity
+	mailResp.LastUID = uint32(mailbox.UIDNext)
 
 	if areNoNewMessages(mailbox, client) {
-		return client, nil, nil
+		return mailResp, nil
 	}
-	if client.LastUID == 0 {
-		client.LastUID = uint32(mailbox.UIDNext)
-		//	return client, nil, nil
+	if client.LastUIDNext == 0 {
+		return mailResp, nil
+	}
+
+	capabilities, err := c.Capability().Wait()
+	if err != nil {
+		return mailResp, err
 	}
 
 	var uidSet imap.UIDSet
-	if len(client.Filters) > 0 {
+	if len(client.Filters) > 0 && capabilities.Has(imap.CapESearch) {
 		uidSet, err = getUIDSetBySearchCriteria(c, client)
 		if err != nil {
-			return client, nil, fmt.Errorf("failed to search message UIDs by criteria: %w", err)
+			return mailResp, err
 		}
 	} else {
-		uidSet = imap.UIDSetNum(imap.UID(client.LastUID - 10))
+		uidSet = imap.UIDSet{imap.UIDRange{
+			Start: imap.UID(mailResp.LastUID) - 10,
+			Stop:  imap.UID(mailResp.LastUID),
+		}}
 	}
 
 	fetchCmd := c.Fetch(uidSet, fetchOptions)
@@ -60,7 +83,6 @@ func IMAPGetMailFunc(client ClientConfig) (ClientConfig, []*Message, error) {
 		err = errors.Join(err, fetchCmd.Close())
 	}()
 
-	var messages []*Message
 	for {
 		msg := fetchCmd.Next()
 		if msg == nil {
@@ -69,22 +91,22 @@ func IMAPGetMailFunc(client ClientConfig) (ClientConfig, []*Message, error) {
 
 		message, err := processMessage(msg, client)
 		if err != nil {
-			return client, nil, fmt.Errorf("mail message processing failed: %w", err)
+			return mailResp, err
 		}
+		// if !capabilities.Has(imap.CapESearch) {
+		// 	// TODO: handle message filtering
+		// }
 
-		messages = append(messages, message)
+		mailResp.Messages = append(mailResp.Messages, message)
 	}
 
-	return client, messages, nil
+	return mailResp, err
 }
 
 func getUIDSetBySearchCriteria(c *imapclient.Client, client ClientConfig) (imap.UIDSet, error) {
-	searchCriteria, err := buildSearchCriteria(client.Filters)
+	searchCriteria, err := buildSearchCriteria(client.Filters, client.LastUIDNext)
 	if err != nil {
 		return nil, fmt.Errorf("search criteria parsing failed: %w", err)
-	}
-	if searchCriteria == nil {
-		return nil, nil
 	}
 
 	searchCmd, err := c.Search(searchCriteria, &imap.SearchOptions{
@@ -95,7 +117,7 @@ func getUIDSetBySearchCriteria(c *imapclient.Client, client ClientConfig) (imap.
 		ReturnSave:  false,
 	}).Wait()
 	if err != nil {
-		return nil, fmt.Errorf("search failed: %w", err)
+		return nil, err
 	}
 
 	uidSet := imap.UIDSetNum(searchCmd.AllUIDs()...)
@@ -104,15 +126,26 @@ func getUIDSetBySearchCriteria(c *imapclient.Client, client ClientConfig) (imap.
 
 func processMessage(msg *imapclient.FetchMessageData, client ClientConfig) (*Message, error) {
 	var (
+		uidSection  imapclient.FetchItemDataUID
 		bodySection imapclient.FetchItemDataBodySection
 		ok          bool
 	)
+
+	item := msg.Next()
+	if item == nil {
+		return nil, errors.New("first message part is nil")
+	}
+	uidSection, ok = item.(imapclient.FetchItemDataUID)
+	if !ok {
+		return nil, errors.New("first message part is not UID section")
+	}
 
 	for {
 		item := msg.Next()
 		if item == nil {
 			break
 		}
+
 		bodySection, ok = item.(imapclient.FetchItemDataBodySection)
 		if ok {
 			break
@@ -129,6 +162,7 @@ func processMessage(msg *imapclient.FetchMessageData, client ClientConfig) (*Mes
 	defer mr.Close()
 
 	message := &Message{
+		UID:  uint32(uidSection.UID),
 		From: mr.Header.Values("From"),
 		To:   mr.Header.Values("To"),
 		CC:   mr.Header.Values("CC"),
@@ -210,7 +244,38 @@ func parseContentTypeHeader(header string) (string, string, bool) {
 
 func areNoNewMessages(mailbox *imap.SelectData, client ClientConfig) bool {
 	return client.LastUIDValidity == mailbox.UIDValidity &&
-		client.LastUID+1 == uint32(mailbox.UIDNext)
+		client.LastUIDNext == uint32(mailbox.UIDNext)
+}
+
+func buildSearchCriteria(filters []string, lastClientUIDNext uint32) (*imap.SearchCriteria, error) {
+	var searchCriteria *imap.SearchCriteria
+
+	for _, filterExpr := range filters {
+		if strings.TrimSpace(filterExpr) == "" {
+			continue
+		}
+
+		newCriteria, err := parseFilter(filterExpr)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse filter expression %q: %w", filterExpr, err)
+		}
+
+		if searchCriteria == nil {
+			searchCriteria = newCriteria
+			continue
+		}
+
+		searchCriteria.And(newCriteria)
+	}
+	if searchCriteria != nil {
+		searchCriteria.And(&imap.SearchCriteria{
+			UID: []imap.UIDSet{{imap.UIDRange{
+				Start: imap.UID(lastClientUIDNext),
+			}}},
+		})
+	}
+
+	return searchCriteria, nil
 }
 
 var fetchOptions = &imap.FetchOptions{

@@ -68,20 +68,26 @@ func (r *TaskRunner) Run(ctx context.Context, client ClientConfig) error {
 
 	storedClient, ok := r.clientStorage.Get(client.Login)
 	if ok {
-		client.LastUID = storedClient.LastUID
+		client.LastUIDNext = storedClient.LastUIDNext
 		client.LastUIDValidity = storedClient.LastUIDValidity
 	}
 
-	client, messages, err := r.mailSource.GetMail(client)
+	mailResp, err := r.mailSource.GetMail(client)
 	if err != nil {
 		r.logger.Error("mail retrieval failed", slog.String("client", client.Login))
 		return fmt.Errorf("failed to retrieve mail: %w", err)
 	}
-	r.logger.Info(fmt.Sprintf("%d new messages received", len(messages)), slog.String("client", client.Login))
+	if len(mailResp.Messages) == 0 {
+		return nil
+	}
 
+	r.logger.Info(fmt.Sprintf("%d new messages received", len(mailResp.Messages)), slog.String("client", client.Login))
+
+	client.LastUIDNext = mailResp.LastUID
+	client.LastUIDValidity = mailResp.LastUIDValidity
 	r.clientStorage.Set(client.Login, client)
 
-	err = r.forwarder.Forward(ctx, client, messages)
+	err = r.forwarder.Forward(ctx, client, mailResp.Messages)
 	if err != nil {
 		return fmt.Errorf("failed to forward message: %w", err)
 	}

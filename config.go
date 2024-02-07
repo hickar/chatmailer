@@ -26,7 +26,7 @@ type ClientConfig struct {
 	Login              string   `yaml:"login"`
 	Password           string   `yaml:"password"`
 	Filters            []string `yaml:"filters"`
-	LastUID            uint32
+	LastUIDNext        uint32
 	LastUIDValidity    uint32
 	IncludeAttachments bool                        `yaml:"include_attachments"`
 	ContactPoint       []ContactPointConfiguration `yaml:"contact_points"`

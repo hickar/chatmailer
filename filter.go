@@ -9,30 +9,6 @@ import (
 	"github.com/emersion/go-imap/v2"
 )
 
-func buildSearchCriteria(filters []string) (*imap.SearchCriteria, error) {
-	var searchCriteria *imap.SearchCriteria
-
-	for _, filterExpr := range filters {
-		if strings.TrimSpace(filterExpr) == "" {
-			continue
-		}
-
-		newCriteria, err := parseFilter(filterExpr)
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse filter expression %q: %w", filterExpr, err)
-		}
-
-		if searchCriteria == nil {
-			searchCriteria = newCriteria
-			continue
-		}
-
-		searchCriteria.And(newCriteria)
-	}
-
-	return searchCriteria, nil
-}
-
 func parseFilter(filterExpr string) (*imap.SearchCriteria, error) {
 	criteria, _, err := parseFilterExpression([]rune(filterExpr), 0)
 	return criteria, err
@@ -333,27 +309,7 @@ func addEqCmpCriteriaOp(c *imap.SearchCriteria, k, v string) *imap.SearchCriteri
 }
 
 func addNotEqCmpCriteriaOp(c *imap.SearchCriteria, k, v string) *imap.SearchCriteria {
-	t := imap.SearchCriteria{}
-
-	if _, ok := msgTokens[k]; ok {
-		if k == "BODY" {
-			t.Body = append(t.Body, v)
-			c.Not = append(c.Not, t)
-			return c
-		}
-
-		if k == "TEXT" {
-			t.Text = append(t.Text, v)
-			c.Not = append(c.Not, t)
-			return c
-		}
-	}
-
-	t.Header = []imap.SearchCriteriaHeaderField{{
-		Key:   k,
-		Value: v,
-	}}
-	c.Not = append(c.Not, t)
+	c.Not = append(c.Not, *addEqCmpCriteriaOp(&imap.SearchCriteria{}, k, v))
 	return c
 }
 
