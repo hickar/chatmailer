@@ -25,6 +25,7 @@ type ClientConfig struct {
 	Address            string   `yaml:"address"`
 	Login              string   `yaml:"login"`
 	Password           string   `yaml:"password"`
+	MarkAsSeen         bool     `yaml:"mark_as_seen"`
 	Filters            []string `yaml:"filters"`
 	LastUIDNext        uint32
 	LastUIDValidity    uint32

@@ -46,7 +46,9 @@ func IMAPGetMailFunc(client ClientConfig) (MailResponse, error) {
 		return mailResp, err
 	}
 
-	mailbox, err := c.Select("inbox", nil).Wait()
+	mailbox, err := c.Select("inbox", &imap.SelectOptions{
+		ReadOnly: client.MarkAsSeen,
+	}).Wait()
 	if err != nil {
 		return mailResp, err
 	}
