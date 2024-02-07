@@ -49,6 +49,7 @@ func main() {
 		if !errors.Is(err, context.Canceled) {
 			logger.Error(fmt.Sprintf("Application exited with error: %s", err), slog.String("module", "main"))
 			cancel()
+			//nolint:gocritic
 			os.Exit(1)
 		}
 	}

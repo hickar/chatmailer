@@ -146,9 +146,6 @@ parseLoop:
 		case c == '(':
 			return parseFilterExpression(filterExpr, i+1)
 
-		case unicode.IsSpace(c):
-			i++
-
 		default:
 			break parseLoop
 		}
@@ -159,10 +156,7 @@ parseLoop:
 		t1, t2 string
 	)
 
-	t1, i, err = parseFilterToken(filterExpr, i)
-	if err != nil {
-		return nil, i, err
-	}
+	t1, i = parseFilterToken(filterExpr, i)
 	if _, ok := flagTokens[strings.ToUpper(t1)]; ok {
 		criteria = &imap.SearchCriteria{}
 		return assignFlag(criteria, strings.ToUpper(t1)), i, nil
@@ -195,7 +189,7 @@ parseLoop:
 	return criteria, i, nil
 }
 
-func parseFilterToken(filterExpr []rune, i int) (string, int, error) {
+func parseFilterToken(filterExpr []rune, i int) (string, int) {
 	var sb strings.Builder
 
 	for i < len(filterExpr) {
@@ -207,11 +201,11 @@ func parseFilterToken(filterExpr []rune, i int) (string, int, error) {
 			i++
 
 		default:
-			return sb.String(), i, nil
+			return sb.String(), i
 		}
 	}
 
-	return sb.String(), i, nil
+	return sb.String(), i
 }
 
 func parseFilterQuotedToken(filterExpr []rune, i int) (string, int, error) {

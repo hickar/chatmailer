@@ -91,7 +91,8 @@ func IMAPGetMailFunc(client ClientConfig) (MailResponse, error) {
 			break
 		}
 
-		message, err := processMessage(msg, client)
+		var message *Message
+		message, err = processMessage(msg, client)
 		if err != nil {
 			return mailResp, err
 		}
@@ -161,7 +162,9 @@ func processMessage(msg *imapclient.FetchMessageData, client ClientConfig) (*Mes
 	if err != nil {
 		return nil, err
 	}
-	defer mr.Close()
+	defer func() {
+		err = errors.Join(err, mr.Close())
+	}()
 
 	message := &Message{
 		UID:  uint32(uidSection.UID),
@@ -175,7 +178,7 @@ func processMessage(msg *imapclient.FetchMessageData, client ClientConfig) (*Mes
 	// Process the message's parts
 	for {
 		part, err := mr.NextPart()
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		}
 		if err != nil {
