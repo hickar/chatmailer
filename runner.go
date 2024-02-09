@@ -17,7 +17,6 @@ type Forwarder interface {
 	Forward(context.Context, ContactPointConfiguration, []*Message) error
 }
 
-// MailRetriever retrieves mail messages from remote mail server.
 type MailRetriever interface {
 	GetMail(ClientConfig) (MailResponse, error)
 }

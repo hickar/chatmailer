@@ -17,7 +17,7 @@ type Config struct {
 	RetryCount          int            `yaml:"retry_count"`
 	RetryDelayMin       int            `yaml:"retry_delay_min"`
 	RetryDelayMax       int            `yaml:"retry_delay_max"`
-	LogLevel            string         `yaml:"log_level"`
+	LogLevel            int            `yaml:"log_level"`
 	Clients             []ClientConfig `yaml:"clients"`
 }
 

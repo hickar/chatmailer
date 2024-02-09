@@ -5,6 +5,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"log"
 	"log/slog"
 	"net/http"
 	"os"
@@ -22,14 +23,14 @@ var (
 func main() {
 	flag.Parse()
 
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
-		Level: slog.LevelDebug,
-	}))
-
 	cfg, err := loadConfig(*configFilepath, *envFilepath)
 	if err != nil {
-		logger.Error(fmt.Sprintf("failed to load configuration: %s", err))
+		log.Fatalf(fmt.Sprintf("failed to load configuration: %s", err))
 	}
+
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
+		Level: slog.Level(cfg.LogLevel),
+	}))
 
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGABRT, syscall.SIGQUIT, syscall.SIGKILL, syscall.SIGTERM)
 	defer cancel()
