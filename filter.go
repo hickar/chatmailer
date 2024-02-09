@@ -356,10 +356,6 @@ func addNotCriteria(c1 *imap.SearchCriteria) *imap.SearchCriteria {
 	}
 }
 
-func intersectCriteria(c1, c2 *imap.SearchCriteria) *imap.SearchCriteria {
-	return c1
-}
-
 func assignFlag(c *imap.SearchCriteria, flagToken string) *imap.SearchCriteria {
 	flag, ok := flagTokens[flagToken]
 	if !ok {

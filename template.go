@@ -30,15 +30,6 @@ const defaultMessageTemplateString = `
 {{with .Date}}**Date**: {{ .Format "Jan 02 2006 15:04:05" }}{{end}}
 `
 
-const backupTmpl = `
-	{{with .From}}**From**: {{ . | map linkify | join ", " }} {{end}}
-	{{with .To}}**To**: {{ . | map linkify | join ", " }} {{end}}
-	{{with .ReplyTo}}**Reply To**: {{ . | map linkify | join ", " }} {{end}}
-	{{with .CC}}**CC**: {{ . | map linkify | join ", " }} {{end}}
-	{{with .Subject}}**Subject**: . {{end}}
-	{{with .Date}}**Date: {{ .Format "Jan 02 2006 15:04:05" }}{{end}}
-`
-
 var (
 	templateFuncMap = template.FuncMap{
 		"join":     strings.Join,

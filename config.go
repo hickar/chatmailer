@@ -30,7 +30,7 @@ type ClientConfig struct {
 	LastUIDNext        uint32
 	LastUIDValidity    uint32
 	IncludeAttachments bool                        `yaml:"include_attachments"`
-	ContactPoint       []ContactPointConfiguration `yaml:"contact_points"`
+	ContactPoints      []ContactPointConfiguration `yaml:"contact_points"`
 }
 
 type ContactPointConfiguration struct {

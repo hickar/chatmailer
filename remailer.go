@@ -45,13 +45,18 @@ func (r *Remailer) Start(ctx context.Context) error {
 
 	go func() {
 		r.scheduler.Schedule(func() {
+			tctx, cancel := context.WithTimeout(ctx, time.Second*30)
+			defer cancel()
+
 			for _, client := range r.cfg.Clients {
-				err := r.runner.Run(ctx, client)
+				err := r.runner.Run(tctx, client)
 				if err != nil {
+					// TODO: handle client configuration ignoring
+					// in case of invalid settings specified
 					errCh <- fmt.Errorf("task execution failed: %w", err)
 				}
 			}
-		}, time.Minute*10)
+		}, time.Minute)
 	}()
 	defer r.scheduler.Stop()
 

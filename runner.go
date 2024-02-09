@@ -42,7 +42,7 @@ func (r *TaskRunner) Run(ctx context.Context, client ClientConfig) error {
 	logger := r.logger.With(slog.String("client", client.Login))
 	logger.Debug("starting email retrieval", slog.String("client", client.Login))
 
-	if len(client.Filters) == 0 {
+	if len(client.ContactPoints) == 0 {
 		logger.Error("client has no contact points specified")
 		return errors.New("client has no contact points specified")
 	}
@@ -69,7 +69,7 @@ func (r *TaskRunner) Run(ctx context.Context, client ClientConfig) error {
 	client.LastUIDValidity = mailResp.LastUIDValidity
 	r.clientStorage.Set(client.Login, client)
 
-	for _, contactPoint := range client.ContactPoint {
+	for _, contactPoint := range client.ContactPoints {
 		err = r.forwarder.Forward(ctx, contactPoint, mailResp.Messages)
 		if err != nil {
 			return fmt.Errorf("failed to forward message: %w", err)

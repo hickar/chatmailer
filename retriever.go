@@ -97,7 +97,8 @@ func IMAPGetMailFunc(client ClientConfig) (MailResponse, error) {
 			return mailResp, err
 		}
 		// if !capabilities.Has(imap.CapESearch) {
-		// 	// TODO: handle message filtering
+		// 	// TODO: handle message filtering in case of remote IMAP server inability
+		//	// to filter messages based on sent search criteria
 		// }
 
 		mailResp.Messages = append(mailResp.Messages, message)
