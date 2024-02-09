@@ -1,0 +1,13 @@
+tg_bot_token: "tg_bot_token"
+refresh_interval: 60s
+log_level: "info"
+clients:
+  - proto: "imap"
+    address: "your.imap.server.com:993" 
+    login: "your.login@mail.com"
+    password: "your.password"
+    include_attachments: false
+    include_images: false
+    contact_points:
+      - type: "telegram"
+      - tg_chat_id: "tg_chat_id"
