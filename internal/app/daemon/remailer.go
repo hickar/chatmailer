@@ -1,27 +1,29 @@
-package main
+package daemon
 
 import (
 	"context"
 	"fmt"
 	"log/slog"
 	"time"
+
+	"github.com/hickar/tg-remailer/internal/app/config"
 )
 
 type Remailer struct {
-	cfg       Config
+	cfg       config.Config
 	logger    *slog.Logger
-	scheduler Scheduler
+	scheduler scheduler
 	runner    TaskRunner
 }
 
-type Scheduler interface {
+type scheduler interface {
 	Schedule(func(), time.Duration)
 	Stop()
 }
 
 func NewRemailer(
-	cfg Config,
-	scheduler Scheduler,
+	cfg config.Config,
+	scheduler scheduler,
 	runner TaskRunner,
 	logger *slog.Logger,
 ) *Remailer {

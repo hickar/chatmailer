@@ -3,7 +3,7 @@ refresh_interval: 60s
 log_level: "info"
 clients:
   - proto: "imap"
-    address: "your.imap.server.com:993" 
+    address: "your.imap.server.com:993"
     login: "your.login@mail.com"
     password: "your.password"
     include_attachments: false

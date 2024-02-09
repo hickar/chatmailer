@@ -1,4 +1,4 @@
-package main
+package mailer
 
 import (
 	"errors"
@@ -9,7 +9,7 @@ import (
 	"github.com/emersion/go-imap/v2"
 )
 
-func parseFilter(filterExpr string) (*imap.SearchCriteria, error) {
+func ParseFilter(filterExpr string) (*imap.SearchCriteria, error) {
 	criteria, _, err := parseFilterExpression([]rune(filterExpr), 0)
 	return criteria, err
 }

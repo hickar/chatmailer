@@ -1,4 +1,4 @@
-package main
+package config
 
 import (
 	"errors"
@@ -41,7 +41,7 @@ type ContactPointConfiguration struct {
 	Template          string `yaml:"template"`
 }
 
-func loadConfig(cfgFilepath, envFilepath string) (Config, error) {
+func LoadConfig(cfgFilepath, envFilepath string) (Config, error) {
 	var cfg Config
 
 	if _, err := os.Stat(envFilepath); err == nil {

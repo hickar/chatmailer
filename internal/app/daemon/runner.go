@@ -1,20 +1,22 @@
-package main
+package daemon
 
 import (
 	"context"
 	"errors"
 	"fmt"
 	"log/slog"
+
+	"github.com/hickar/tg-remailer/internal/app/config"
 )
 
 type ClientStorage interface {
-	Get(user string) (ClientConfig, bool)
-	Set(user string, config ClientConfig)
+	Get(user string) (config.ClientConfig, bool)
+	Set(user string, config config.ClientConfig)
 	Remove(user string) bool
 }
 
 type Forwarder interface {
-	Forward(context.Context, ContactPointConfiguration, []*Message) error
+	Forward(context.Context, config.ContactPointConfiguration, []*Message) error
 }
 
 type TaskRunner struct {
@@ -38,7 +40,7 @@ func NewRunner(
 	}
 }
 
-func (r *TaskRunner) Run(ctx context.Context, client ClientConfig) error {
+func (r *TaskRunner) Run(ctx context.Context, client config.ClientConfig) error {
 	logger := r.logger.With(slog.String("client", client.Login))
 	logger.Debug("starting email retrieval", slog.String("client", client.Login))
 

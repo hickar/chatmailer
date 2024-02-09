@@ -10,6 +10,10 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+
+	"github.com/hickar/tg-remailer/internal/app/config"
+	"github.com/hickar/tg-remailer/internal/app/daemon"
+	"github.com/hickar/tg-remailer/internal/app/storage"
 )
 
 var (
@@ -24,7 +28,7 @@ func main() {
 		Level: slog.LevelDebug,
 	}))
 
-	cfg, err := loadConfig(*configFilepath, *envFilepath)
+	cfg, err := config.LoadConfig(*configFilepath, *envFilepath)
 	if err != nil {
 		logger.Error(fmt.Sprintf("failed to load configuration: %s", err))
 	}
@@ -32,16 +36,16 @@ func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGABRT, syscall.SIGQUIT, syscall.SIGKILL, syscall.SIGTERM)
 	defer cancel()
 
-	runner := NewRunner(
-		newInMemoryStorage(),
-		MailSourceFunc(IMAPGetMailFunc),
-		NewTelegramForwarder(&http.Client{}, logger.With(slog.String("module", "telegram_forwarder"))),
+	runner := daemon.NewRunner(
+		storage.NewInMemoryStorage(),
+		daemon.MailSourceFunc(daemon.IMAPGetMailFunc),
+		daemon.NewTelegramForwarder(&http.Client{}, logger.With(slog.String("module", "telegram_forwarder"))),
 		logger.With(slog.String("module", "runner")),
 	)
 
-	remailer := NewRemailer(
+	remailer := daemon.NewRemailer(
 		cfg,
-		&scheduler{},
+		&daemon.Scheduler{},
 		runner,
 		logger.With(slog.String("module", "remailer")),
 	)

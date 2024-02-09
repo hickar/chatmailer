@@ -1,9 +1,11 @@
-package main
+package daemon
 
 import (
 	"context"
 	"log/slog"
 	"net/http"
+
+	"github.com/hickar/tg-remailer/internal/app/config"
 )
 
 type telegramForwarder struct {
@@ -18,7 +20,7 @@ func NewTelegramForwarder(client *http.Client, logger *slog.Logger) *telegramFor
 	}
 }
 
-func (n *telegramForwarder) Forward(_ context.Context, _ ContactPointConfiguration, _ []*Message) error {
+func (n *telegramForwarder) Forward(_ context.Context, _ config.ContactPointConfiguration, _ []*Message) error {
 	// TODO: implement
 	return nil
 }

@@ -1,21 +1,21 @@
-package main
+package daemon
 
 import "time"
 
-type scheduler struct {
+type Scheduler struct {
 	callback func()
 	ticker   *time.Ticker
 	quit     chan struct{}
 }
 
-func (s *scheduler) Schedule(callback func(), period time.Duration) {
+func (s *Scheduler) Schedule(callback func(), period time.Duration) {
 	s.quit = make(chan struct{})
 	s.callback = callback
 	s.ticker = time.NewTicker(time.Minute)
 	go s.runSchedule()
 }
 
-func (s *scheduler) runSchedule() {
+func (s *Scheduler) runSchedule() {
 	defer s.ticker.Stop()
 
 	for {
@@ -28,6 +28,6 @@ func (s *scheduler) runSchedule() {
 	}
 }
 
-func (s *scheduler) Stop() {
+func (s *Scheduler) Stop() {
 	close(s.quit)
 }

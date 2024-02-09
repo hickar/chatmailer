@@ -1,4 +1,4 @@
-package main
+package daemon
 
 import (
 	"errors"
@@ -11,16 +11,19 @@ import (
 	"github.com/emersion/go-imap/v2/imapclient"
 	"github.com/emersion/go-message/charset"
 	"github.com/emersion/go-message/mail"
+
+	"github.com/hickar/tg-remailer/internal/app/config"
+	"github.com/hickar/tg-remailer/internal/app/mailer"
 )
 
 // MailRetriever retrieves mail messages from remote mail server.
 type MailRetriever interface {
-	GetMail(ClientConfig) (MailResponse, error)
+	GetMail(config.ClientConfig) (MailResponse, error)
 }
 
-type MailSourceFunc func(ClientConfig) (MailResponse, error)
+type MailSourceFunc func(config.ClientConfig) (MailResponse, error)
 
-func (m MailSourceFunc) GetMail(mailCfg ClientConfig) (MailResponse, error) {
+func (m MailSourceFunc) GetMail(mailCfg config.ClientConfig) (MailResponse, error) {
 	return m(mailCfg)
 }
 
@@ -30,7 +33,7 @@ type MailResponse struct {
 	Messages        []*Message
 }
 
-func IMAPGetMailFunc(client ClientConfig) (MailResponse, error) {
+func IMAPGetMailFunc(client config.ClientConfig) (MailResponse, error) {
 	var mailResp MailResponse
 
 	c, err := imapclient.DialTLS(client.Address, &imapclient.Options{
@@ -106,7 +109,7 @@ func IMAPGetMailFunc(client ClientConfig) (MailResponse, error) {
 	return mailResp, err
 }
 
-func getUIDSetBySearchCriteria(c *imapclient.Client, client ClientConfig) (imap.UIDSet, error) {
+func getUIDSetBySearchCriteria(c *imapclient.Client, client config.ClientConfig) (imap.UIDSet, error) {
 	searchCriteria, err := buildSearchCriteria(client.Filters, client.LastUIDNext)
 	if err != nil {
 		return nil, fmt.Errorf("search criteria parsing failed: %w", err)
@@ -127,7 +130,7 @@ func getUIDSetBySearchCriteria(c *imapclient.Client, client ClientConfig) (imap.
 	return uidSet, nil
 }
 
-func processMessage(msg *imapclient.FetchMessageData, client ClientConfig) (*Message, error) {
+func processMessage(msg *imapclient.FetchMessageData, client config.ClientConfig) (*Message, error) {
 	var (
 		uidSection  imapclient.FetchItemDataUID
 		bodySection imapclient.FetchItemDataBodySection
@@ -247,7 +250,7 @@ func parseContentTypeHeader(header string) (string, string, bool) {
 	return mimeType, charset, true
 }
 
-func areNoNewMessages(mailbox *imap.SelectData, client ClientConfig) bool {
+func areNoNewMessages(mailbox *imap.SelectData, client config.ClientConfig) bool {
 	return client.LastUIDValidity == mailbox.UIDValidity &&
 		client.LastUIDNext == uint32(mailbox.UIDNext)
 }
@@ -260,7 +263,7 @@ func buildSearchCriteria(filters []string, lastClientUIDNext uint32) (*imap.Sear
 			continue
 		}
 
-		newCriteria, err := parseFilter(filterExpr)
+		newCriteria, err := mailer.ParseFilter(filterExpr)
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse filter expression %q: %w", filterExpr, err)
 		}
