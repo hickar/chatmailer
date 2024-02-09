@@ -26,3 +26,9 @@ type Attachment struct {
 	MIMEType string
 	Body     []byte
 }
+
+type MailResponse struct {
+	LastUID         uint32
+	LastUIDValidity uint32
+	Messages        []*Message
+}

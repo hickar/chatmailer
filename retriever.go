@@ -13,27 +13,28 @@ import (
 	"github.com/emersion/go-message/mail"
 )
 
-// MailRetriever retrieves mail messages from remote mail server.
-type MailRetriever interface {
-	GetMail(ClientConfig) (MailResponse, error)
+type imapDialer interface {
+	DialTLS(address string, options *imapclient.Options) (*imapclient.Client, error)
 }
 
-type MailSourceFunc func(ClientConfig) (MailResponse, error)
+type imapDialerFunc func(string, *imapclient.Options) (*imapclient.Client, error)
 
-func (m MailSourceFunc) GetMail(mailCfg ClientConfig) (MailResponse, error) {
-	return m(mailCfg)
+func (f imapDialerFunc) DialTLS(address string, options *imapclient.Options) (*imapclient.Client, error) {
+	return f(address, options)
 }
 
-type MailResponse struct {
-	LastUID         uint32
-	LastUIDValidity uint32
-	Messages        []*Message
+type imapRetriever struct {
+	dialer imapDialer
 }
 
-func IMAPGetMailFunc(client ClientConfig) (MailResponse, error) {
+func NewIMAPRetriever(dialer imapDialer) *imapRetriever {
+	return &imapRetriever{dialer: dialer}
+}
+
+func (r *imapRetriever) GetMail(client ClientConfig) (MailResponse, error) {
 	var mailResp MailResponse
 
-	c, err := imapclient.DialTLS(client.Address, &imapclient.Options{
+	c, err := r.dialer.DialTLS(client.Address, &imapclient.Options{
 		DebugWriter:           nil,
 		UnilateralDataHandler: &imapclient.UnilateralDataHandler{},
 		WordDecoder:           &mime.WordDecoder{CharsetReader: charset.Reader},
@@ -75,7 +76,7 @@ func IMAPGetMailFunc(client ClientConfig) (MailResponse, error) {
 		}
 	} else {
 		uidSet = imap.UIDSet{imap.UIDRange{
-			Start: imap.UID(mailResp.LastUID) - 10,
+			Start: imap.UID(client.LastUIDNext),
 			Stop:  imap.UID(mailResp.LastUID),
 		}}
 	}

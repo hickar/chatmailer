@@ -10,6 +10,8 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+
+	"github.com/emersion/go-imap/v2/imapclient"
 )
 
 var (
@@ -34,7 +36,7 @@ func main() {
 
 	runner := NewRunner(
 		newInMemoryStorage(),
-		MailSourceFunc(IMAPGetMailFunc),
+		NewIMAPRetriever(imapDialerFunc(imapclient.DialTLS)),
 		NewTelegramForwarder(&http.Client{}, logger.With(slog.String("module", "telegram_forwarder"))),
 		logger.With(slog.String("module", "runner")),
 	)
