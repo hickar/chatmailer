@@ -40,7 +40,7 @@ func NewRunner(
 
 func (r *TaskRunner) Run(ctx context.Context, client ClientConfig) error {
 	logger := r.logger.With(slog.String("client", client.Login))
-	logger.Debug("starting email retrieval", slog.String("client", client.Login))
+	logger.Debug("starting email retrieval")
 
 	if len(client.ContactPoints) == 0 {
 		logger.Error("client has no contact points specified")
@@ -55,7 +55,7 @@ func (r *TaskRunner) Run(ctx context.Context, client ClientConfig) error {
 
 	mailResp, err := r.mailRetriever.GetMail(client)
 	if err != nil {
-		logger.Error("mail retrieval failed", slog.String("client", client.Login))
+		logger.Error(fmt.Sprintf("mail retrieval failed: %v", err))
 		return fmt.Errorf("failed to retrieve mail: %w", err)
 	}
 
