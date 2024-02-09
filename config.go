@@ -11,13 +11,13 @@ import (
 )
 
 type Config struct {
-	TGBotToken      string         `yaml:"tg_bot_token"`
-	RefreshInterval time.Duration  `yaml:"refresh_interval"`
-	RetryCount      int            `yaml:"retry_count"`
-	RetryDelayMin   int            `yaml:"retry_delay_min"`
-	RetryDelayMax   int            `yaml:"retry_delay_max"`
-	LogLevel        string         `yaml:"log_level"`
-	Clients         []ClientConfig `yaml:"clients"`
+	TGBotToken       string         `yaml:"tg_bot_token"`
+	MailPollInterval time.Duration  `yaml:"mail_poll_interval"`
+	RetryCount       int            `yaml:"retry_count"`
+	RetryDelayMin    int            `yaml:"retry_delay_min"`
+	RetryDelayMax    int            `yaml:"retry_delay_max"`
+	LogLevel         string         `yaml:"log_level"`
+	Clients          []ClientConfig `yaml:"clients"`
 }
 
 type ClientConfig struct {
@@ -34,8 +34,11 @@ type ClientConfig struct {
 }
 
 type ContactPointConfiguration struct {
-	TGBotToken string `yaml:"tg_bot_token"`
-	TGChatID   int64  `yaml:"tg_chat_id"`
+	TGBotToken        string `yaml:"tg_bot_token"`
+	TGChatID          int64  `yaml:"tg_chat_id"`
+	SilentMode        bool   `yaml:"silent_mode"`
+	DisableForwarding bool   `yaml:"disable_forwarding"`
+	Template          string `yaml:"template"`
 }
 
 func loadConfig(cfgFilepath, envFilepath string) (Config, error) {

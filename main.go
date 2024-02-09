@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -34,7 +35,7 @@ func main() {
 	runner := NewRunner(
 		newInMemoryStorage(),
 		MailSourceFunc(IMAPGetMailFunc),
-		&TelegramForwarder{},
+		NewTelegramForwarder(&http.Client{}, logger.With(slog.String("module", "telegram_forwarder"))),
 		logger.With(slog.String("module", "runner")),
 	)
 

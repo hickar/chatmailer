@@ -36,12 +36,12 @@ func NewRemailer(
 func (r *Remailer) Start(ctx context.Context) error {
 	errCh := make(chan error, 1)
 
-	for _, client := range r.cfg.Clients {
-		err := r.runner.Run(ctx, client)
-		if err != nil {
-			return fmt.Errorf("initial task execution failed: %w", err)
-		}
-	}
+	// for _, client := range r.cfg.Clients {
+	// 	err := r.runner.Run(ctx, client)
+	// 	if err != nil {
+	// 		return fmt.Errorf("initial task execution failed: %w", err)
+	// 	}
+	// }
 
 	go func() {
 		r.scheduler.Schedule(func() {
@@ -51,7 +51,7 @@ func (r *Remailer) Start(ctx context.Context) error {
 					errCh <- fmt.Errorf("task execution failed: %w", err)
 				}
 			}
-		}, time.Minute)
+		}, time.Minute*10)
 	}()
 	defer r.scheduler.Stop()
 
