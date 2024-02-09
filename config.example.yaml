@@ -10,4 +10,4 @@ clients:
     include_images: false
     contact_points:
       - type: "telegram"
-      - tg_chat_id: "tg_chat_id"
+        tg_chat_id: "tg_chat_id"
