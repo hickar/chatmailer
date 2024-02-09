@@ -11,13 +11,14 @@ import (
 )
 
 type Config struct {
-	TGBotToken       string         `yaml:"tg_bot_token"`
-	MailPollInterval time.Duration  `yaml:"mail_poll_interval"`
-	RetryCount       int            `yaml:"retry_count"`
-	RetryDelayMin    int            `yaml:"retry_delay_min"`
-	RetryDelayMax    int            `yaml:"retry_delay_max"`
-	LogLevel         string         `yaml:"log_level"`
-	Clients          []ClientConfig `yaml:"clients"`
+	TGBotToken          string         `yaml:"tg_bot_token"`
+	MailPollInterval    time.Duration  `yaml:"mail_poll_interval"`
+	MailPollTaskTimeout time.Duration  `yaml:"mail_poll_task_timeout"`
+	RetryCount          int            `yaml:"retry_count"`
+	RetryDelayMin       int            `yaml:"retry_delay_min"`
+	RetryDelayMax       int            `yaml:"retry_delay_max"`
+	LogLevel            string         `yaml:"log_level"`
+	Clients             []ClientConfig `yaml:"clients"`
 }
 
 type ClientConfig struct {

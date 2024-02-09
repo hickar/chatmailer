@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"time"
 )
 
 type Remailer struct {
@@ -15,7 +14,7 @@ type Remailer struct {
 }
 
 type Scheduler interface {
-	Schedule(func(), time.Duration)
+	ScheduleWithCtx(context.Context, schedulerSettings) error
 	Stop()
 }
 
@@ -36,27 +35,27 @@ func NewRemailer(
 func (r *Remailer) Start(ctx context.Context) error {
 	errCh := make(chan error, 1)
 
-	// for _, client := range r.cfg.Clients {
-	// 	err := r.runner.Run(ctx, client)
-	// 	if err != nil {
-	// 		return fmt.Errorf("initial task execution failed: %w", err)
-	// 	}
-	// }
-
 	go func() {
-		r.scheduler.Schedule(func() {
-			tctx, cancel := context.WithTimeout(ctx, time.Second*30)
-			defer cancel()
+		err := r.scheduler.ScheduleWithCtx(ctx, schedulerSettings{
+			LaunchInitially: true,
+			Interval:        r.cfg.MailPollInterval,
+			Callback: func() {
+				tctx, cancel := context.WithTimeout(ctx, r.cfg.MailPollTaskTimeout)
+				defer cancel()
 
-			for _, client := range r.cfg.Clients {
-				err := r.runner.Run(tctx, client)
-				if err != nil {
-					// TODO: handle client configuration ignoring
-					// in case of invalid settings specified
-					errCh <- fmt.Errorf("task execution failed: %w", err)
+				for _, client := range r.cfg.Clients {
+					err := r.runner.Run(tctx, client)
+					if err != nil {
+						// TODO: handle client configuration ignoring
+						// in case of invalid settings specified
+						errCh <- fmt.Errorf("task execution failed: %w", err)
+					}
 				}
-			}
-		}, time.Minute)
+			},
+		})
+		if err != nil {
+			errCh <- fmt.Errorf("error occurred on scheduler launch: %w", err)
+		}
 	}()
 	defer r.scheduler.Stop()
 
