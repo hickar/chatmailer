@@ -214,6 +214,7 @@ func processMessage(msg *imapclient.FetchMessageData, client config.ClientConfig
 		From: mr.Header.Values("From"),
 		To:   mr.Header.Values("To"),
 		CC:   mr.Header.Values("CC"),
+		BCC:  mr.Header.Values("BCC"),
 	}
 	message.Date, _ = mr.Header.Date()
 	message.Subject, _ = mr.Header.Text("Subject")

@@ -8,6 +8,7 @@ type Message struct {
 	From        []string
 	To          []string
 	CC          []string
+	BCC         []string
 	ReplyTo     []string
 	Date        time.Time
 	Mailbox     string
