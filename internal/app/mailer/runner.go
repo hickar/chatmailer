@@ -1,24 +1,26 @@
-package main
+package mailer
 
 import (
 	"context"
 	"errors"
 	"fmt"
 	"log/slog"
+
+	"github.com/hickar/tg-remailer/internal/app/config"
 )
 
 type ClientStorage interface {
-	Get(user string) (ClientConfig, bool)
-	Set(user string, config ClientConfig)
+	Get(user string) (config.ClientConfig, bool)
+	Set(user string, config config.ClientConfig)
 	Remove(user string) bool
 }
 
 type Forwarder interface {
-	Forward(context.Context, ContactPointConfiguration, []*Message) error
+	Forward(context.Context, config.ContactPointConfiguration, []*Message) error
 }
 
 type MailRetriever interface {
-	GetMail(ClientConfig) (MailResponse, error)
+	GetMail(config.ClientConfig) (MailResponse, error)
 }
 
 type TaskRunner struct {
@@ -42,7 +44,17 @@ func NewRunner(
 	}
 }
 
-func (r *TaskRunner) Run(ctx context.Context, client ClientConfig) error {
+// Run retrieves emails for the specified client and forwards them to configured contact points.
+//
+// Updates client state (LastUIDNext, LastUIDValidity) in the operational memory storage
+// to not re-execute parsing and forwarding for already handled emails next time.
+//
+// Handles errors during retrieval and forwarding.
+// Returns an error if any of the following occur:
+// - The client has no configured contact points.
+// - Mail retrieval fails.
+// - Forwarding to any contact point fails.
+func (r *TaskRunner) Run(ctx context.Context, client config.ClientConfig) error {
 	logger := r.logger.With(slog.String("client", client.Login))
 	logger.Debug("starting email retrieval")
 

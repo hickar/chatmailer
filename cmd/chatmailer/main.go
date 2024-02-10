@@ -13,6 +13,13 @@ import (
 	"syscall"
 
 	"github.com/emersion/go-imap/v2/imapclient"
+
+	"github.com/hickar/tg-remailer/internal/app/config"
+	"github.com/hickar/tg-remailer/internal/app/daemon"
+	"github.com/hickar/tg-remailer/internal/app/forwarder"
+	"github.com/hickar/tg-remailer/internal/app/mailer"
+	"github.com/hickar/tg-remailer/internal/app/retriever"
+	"github.com/hickar/tg-remailer/internal/app/storage"
 )
 
 var (
@@ -23,7 +30,7 @@ var (
 func main() {
 	flag.Parse()
 
-	cfg, err := loadConfig(*configFilepath, *envFilepath)
+	cfg, err := config.LoadConfig(*configFilepath, *envFilepath)
 	if err != nil {
 		log.Fatalf(fmt.Sprintf("failed to load configuration: %s", err))
 	}
@@ -32,22 +39,28 @@ func main() {
 		Level: slog.Level(cfg.LogLevel),
 	}))
 
-	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGABRT, syscall.SIGQUIT, syscall.SIGKILL, syscall.SIGTERM)
-	defer cancel()
+	telegramForwarder, err := forwarder.NewForwarder(&http.Client{}, logger, forwarder.TypeTelegram)
+	if err != nil {
+		logger.Error(fmt.Sprintf("failed to initialize forwarder: %v", err))
+		os.Exit(1)
+	}
 
-	runner := NewRunner(
-		newInMemoryStorage(),
-		NewIMAPRetriever(imapDialerFunc(imapclient.DialTLS)),
-		NewTelegramForwarder(&http.Client{}, logger.With(slog.String("module", "telegram_forwarder"))),
+	runner := mailer.NewRunner(
+		storage.NewInMemoryStorage(),
+		retriever.NewIMAPRetriever(retriever.ImapDialerFunc(imapclient.DialTLS)),
+		telegramForwarder,
 		logger.With(slog.String("module", "runner")),
 	)
 
-	remailer := NewRemailer(
+	remailer := daemon.NewDaemon(
 		cfg,
-		&scheduler{},
+		&daemon.Scheduler{},
 		runner,
 		logger.With(slog.String("module", "remailer")),
 	)
+
+	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGABRT, syscall.SIGQUIT, syscall.SIGKILL, syscall.SIGTERM)
+	defer cancel()
 
 	if err = remailer.Start(ctx); err != nil {
 		if !errors.Is(err, context.Canceled) {

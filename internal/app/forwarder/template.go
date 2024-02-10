@@ -1,4 +1,4 @@
-package main
+package forwarder
 
 import (
 	"bytes"
@@ -7,6 +7,8 @@ import (
 	"text/template"
 
 	md "github.com/JohannesKaufmann/html-to-markdown"
+
+	"github.com/hickar/tg-remailer/internal/app/mailer"
 )
 
 const defaultMessageTemplateString = `
@@ -38,7 +40,7 @@ var (
 	defaultTemplate = template.Must(template.New("").Funcs(templateFuncMap).Parse(defaultMessageTemplateString))
 )
 
-func renderTemplate(message *Message, templateStr string) (string, error) {
+func renderTemplate(message *mailer.Message, templateStr string) (string, error) {
 	var buf bytes.Buffer
 	var err error
 

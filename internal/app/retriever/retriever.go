@@ -1,4 +1,4 @@
-package main
+package retriever
 
 import (
 	"errors"
@@ -11,15 +11,17 @@ import (
 	"github.com/emersion/go-imap/v2/imapclient"
 	"github.com/emersion/go-message/charset"
 	"github.com/emersion/go-message/mail"
+
+	"github.com/hickar/tg-remailer/internal/app/config"
+	"github.com/hickar/tg-remailer/internal/app/mailer"
 )
 
 type imapDialer interface {
 	DialTLS(address string, options *imapclient.Options) (*imapclient.Client, error)
 }
+type ImapDialerFunc func(string, *imapclient.Options) (*imapclient.Client, error)
 
-type imapDialerFunc func(string, *imapclient.Options) (*imapclient.Client, error)
-
-func (f imapDialerFunc) DialTLS(address string, options *imapclient.Options) (*imapclient.Client, error) {
+func (f ImapDialerFunc) DialTLS(address string, options *imapclient.Options) (*imapclient.Client, error) {
 	return f(address, options)
 }
 
@@ -31,8 +33,45 @@ func NewIMAPRetriever(dialer imapDialer) *imapRetriever {
 	return &imapRetriever{dialer: dialer}
 }
 
-func (r *imapRetriever) GetMail(client ClientConfig) (MailResponse, error) {
-	var mailResp MailResponse
+// Retrieves emails from an IMAP server for specificied client.
+//
+// Execution flow:
+// 1. Connect to the IMAP server using TLS.
+// 2. Authenticate with the provided login credentials.
+// 3. Select the "inbox" mailbox (optionally marking messages as seen).
+// 4. Check if there are new messages based on UID validity and UIDNext comparison.
+// 5. If there are new messages:
+//   - Retrieve capabilities to determine if extended search is supported.
+//   - If filters are provided and extended search is supported:
+//   - Build a search criteria based on the filters and the client's LastUIDNext.
+//   - Perform a search on the server to get the UIDs of matching messages.
+//   - Otherwise, fetch all messages since the client's LastUIDNext (inclusive).
+//
+// 6. For each message:
+//   - Extract the UID, sender, recipients, CC recipients, date, and subject.
+//   - Process each part of the message (text body or attachment):
+//   - For text parts:
+//   - Read the content and determine MIME type and character set.
+//   - Add the body segment to the message.
+//   - For attachments (if inclusion is enabled):
+//   - Parse the attachment information (not yet implemented).
+//   - Add the attachment to the message (not yet implemented).
+//
+// 7. Return the retrieved messages and any encountered errors.
+// Lacks of appropriate error and behaviour handling, need to handle such cases:
+//   - Dial TLS failure
+//   - Login failure
+//   - Read mainbox failure
+//   - LastUIDNext === 0 case
+//   - Capability error
+//   - Search builder and Lexer errors
+//   - Message, Headers and Attachments errors
+//
+// I suppose we need to enhance errors from all child functions and handle them in
+// GetMail with additional information and context for each error. It will greatly
+// improve debugging.GetMail.
+func (r *imapRetriever) GetMail(client config.ClientConfig) (mailer.MailResponse, error) {
+	var mailResp mailer.MailResponse
 
 	c, err := r.dialer.DialTLS(client.Address, &imapclient.Options{
 		DebugWriter:           nil,
@@ -92,7 +131,7 @@ func (r *imapRetriever) GetMail(client ClientConfig) (MailResponse, error) {
 			break
 		}
 
-		var message *Message
+		var message *mailer.Message
 		message, err = processMessage(msg, client)
 		if err != nil {
 			return mailResp, err
@@ -110,7 +149,7 @@ func (r *imapRetriever) GetMail(client ClientConfig) (MailResponse, error) {
 	return mailResp, err
 }
 
-func getUIDSetBySearchCriteria(c *imapclient.Client, client ClientConfig) (imap.UIDSet, error) {
+func getUIDSetBySearchCriteria(c *imapclient.Client, client config.ClientConfig) (imap.UIDSet, error) {
 	searchCriteria, err := buildSearchCriteria(client.Filters, client.LastUIDNext)
 	if err != nil {
 		return nil, fmt.Errorf("search criteria parsing failed: %w", err)
@@ -131,7 +170,7 @@ func getUIDSetBySearchCriteria(c *imapclient.Client, client ClientConfig) (imap.
 	return uidSet, nil
 }
 
-func processMessage(msg *imapclient.FetchMessageData, client ClientConfig) (*Message, error) {
+func processMessage(msg *imapclient.FetchMessageData, client config.ClientConfig) (*mailer.Message, error) {
 	var (
 		uidSection  imapclient.FetchItemDataUID
 		bodySection imapclient.FetchItemDataBodySection
@@ -170,7 +209,7 @@ func processMessage(msg *imapclient.FetchMessageData, client ClientConfig) (*Mes
 		err = errors.Join(err, mr.Close())
 	}()
 
-	message := &Message{
+	message := &mailer.Message{
 		UID:  uint32(uidSection.UID),
 		From: mr.Header.Values("From"),
 		To:   mr.Header.Values("To"),
@@ -214,8 +253,8 @@ func processMessage(msg *imapclient.FetchMessageData, client ClientConfig) (*Mes
 	return message, nil
 }
 
-func processBodyPart(part *mail.Part) (BodySegment, error) {
-	var bodySegment BodySegment
+func processBodyPart(part *mail.Part) (mailer.BodySegment, error) {
+	var bodySegment mailer.BodySegment
 	bodySegment.Content, _ = io.ReadAll(part.Body)
 
 	headerValue := part.Header.Get("Content-type")
@@ -230,9 +269,9 @@ func processBodyPart(part *mail.Part) (BodySegment, error) {
 	return bodySegment, nil
 }
 
-func processAttachment(part *mail.Part, header *mail.AttachmentHeader) (Attachment, error) {
+func processAttachment(part *mail.Part, header *mail.AttachmentHeader) (mailer.Attachment, error) {
 	// TODO: implement later
-	return Attachment{}, nil
+	return mailer.Attachment{}, nil
 }
 
 func parseContentTypeHeader(header string) (string, string, bool) {
@@ -251,7 +290,7 @@ func parseContentTypeHeader(header string) (string, string, bool) {
 	return mimeType, charset, true
 }
 
-func areNoNewMessages(mailbox *imap.SelectData, client ClientConfig) bool {
+func areNoNewMessages(mailbox *imap.SelectData, client config.ClientConfig) bool {
 	return client.LastUIDValidity == mailbox.UIDValidity &&
 		client.LastUIDNext == uint32(mailbox.UIDNext)
 }
@@ -264,7 +303,7 @@ func buildSearchCriteria(filters []string, lastClientUIDNext uint32) (*imap.Sear
 			continue
 		}
 
-		newCriteria, err := parseFilter(filterExpr)
+		newCriteria, err := ParseFilter(filterExpr)
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse filter expression %q: %w", filterExpr, err)
 		}
