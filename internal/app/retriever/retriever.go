@@ -1,4 +1,4 @@
-package daemon
+package retriever
 
 import (
 	"errors"
@@ -70,9 +70,9 @@ func NewIMAPRetriever(dialer imapDialer) *imapRetriever {
 //
 // I suppose we need to enhance errors from all child functions and handle them in
 // GetMail with additional information and context for each error. It will greatly
-// improve debugging.GetMail
-func (r *imapRetriever) GetMail(client config.ClientConfig) (MailResponse, error) {
-	var mailResp MailResponse
+// improve debugging.GetMail.
+func (r *imapRetriever) GetMail(client config.ClientConfig) (mailer.MailResponse, error) {
+	var mailResp mailer.MailResponse
 
 	c, err := r.dialer.DialTLS(client.Address, &imapclient.Options{
 		DebugWriter:           nil,
@@ -132,7 +132,7 @@ func (r *imapRetriever) GetMail(client config.ClientConfig) (MailResponse, error
 			break
 		}
 
-		var message *Message
+		var message *mailer.Message
 		message, err = processMessage(msg, client)
 		if err != nil {
 			return mailResp, err
@@ -171,7 +171,7 @@ func getUIDSetBySearchCriteria(c *imapclient.Client, client config.ClientConfig)
 	return uidSet, nil
 }
 
-func processMessage(msg *imapclient.FetchMessageData, client config.ClientConfig) (*Message, error) {
+func processMessage(msg *imapclient.FetchMessageData, client config.ClientConfig) (*mailer.Message, error) {
 	var (
 		uidSection  imapclient.FetchItemDataUID
 		bodySection imapclient.FetchItemDataBodySection
@@ -210,7 +210,7 @@ func processMessage(msg *imapclient.FetchMessageData, client config.ClientConfig
 		err = errors.Join(err, mr.Close())
 	}()
 
-	message := &Message{
+	message := &mailer.Message{
 		UID:  uint32(uidSection.UID),
 		From: mr.Header.Values("From"),
 		To:   mr.Header.Values("To"),
@@ -254,8 +254,8 @@ func processMessage(msg *imapclient.FetchMessageData, client config.ClientConfig
 	return message, nil
 }
 
-func processBodyPart(part *mail.Part) (BodySegment, error) {
-	var bodySegment BodySegment
+func processBodyPart(part *mail.Part) (mailer.BodySegment, error) {
+	var bodySegment mailer.BodySegment
 	bodySegment.Content, _ = io.ReadAll(part.Body)
 
 	headerValue := part.Header.Get("Content-type")
@@ -270,9 +270,9 @@ func processBodyPart(part *mail.Part) (BodySegment, error) {
 	return bodySegment, nil
 }
 
-func processAttachment(part *mail.Part, header *mail.AttachmentHeader) (Attachment, error) {
+func processAttachment(part *mail.Part, header *mail.AttachmentHeader) (mailer.Attachment, error) {
 	// TODO: implement later
-	return Attachment{}, nil
+	return mailer.Attachment{}, nil
 }
 
 func parseContentTypeHeader(header string) (string, string, bool) {
@@ -304,7 +304,7 @@ func buildSearchCriteria(filters []string, lastClientUIDNext uint32) (*imap.Sear
 			continue
 		}
 
-		newCriteria, err := mailer.ParseFilter(filterExpr)
+		newCriteria, err := ParseFilter(filterExpr)
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse filter expression %q: %w", filterExpr, err)
 		}

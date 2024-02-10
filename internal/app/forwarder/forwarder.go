@@ -1,4 +1,4 @@
-package daemon
+package forwarder
 
 import (
 	"context"
@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"github.com/hickar/tg-remailer/internal/app/config"
+	"github.com/hickar/tg-remailer/internal/app/mailer"
 )
 
 type telegramForwarder struct {
@@ -14,15 +15,21 @@ type telegramForwarder struct {
 	logger *slog.Logger
 }
 
+const TypeTelegram = "telegram"
+
 // Choose type of client which will receive emails.
 // Default is Telegram, but it's possible to add new clients in future
 // if we implement loop.
-func NewForwarder(client *http.Client, logger *slog.Logger, config config.ContactPointConfiguration) (Forwarder, error) {
-	switch config.Type {
-	case "telegram":
+func NewForwarder(
+	client *http.Client,
+	logger *slog.Logger,
+	forwarderType string,
+) (mailer.Forwarder, error) {
+	switch forwarderType {
+	case TypeTelegram:
 		return newTelegramForwarder(client, logger.With(slog.String("module", "telegram_forwarder"))), nil
 	default:
-		return nil, fmt.Errorf("unsupported forwarder type: %s", config.Type)
+		return nil, fmt.Errorf("unsupported forwarder type: %s", forwarderType)
 	}
 }
 
@@ -33,7 +40,7 @@ func newTelegramForwarder(client *http.Client, logger *slog.Logger) *telegramFor
 	}
 }
 
-func (t *telegramForwarder) Forward(ctx context.Context, config config.ContactPointConfiguration, messages []*Message) error {
+func (t *telegramForwarder) Forward(ctx context.Context, config config.ContactPointConfiguration, messages []*mailer.Message) error {
 	return nil
 }
 

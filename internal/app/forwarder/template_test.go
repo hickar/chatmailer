@@ -1,15 +1,17 @@
-package daemon
+package forwarder
 
 import (
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/hickar/tg-remailer/internal/app/mailer"
 )
 
 func TestRenderDefaultTemplate(t *testing.T) {
-	msg := &Message{
-		BodyParts: []BodySegment{},
+	msg := &mailer.Message{
+		BodyParts: []mailer.BodySegment{},
 		Subject:   "Testing templates",
 		From:      []string{"hickar@icloud.com"},
 		To:        []string{"hickar@protonmail.ch"},

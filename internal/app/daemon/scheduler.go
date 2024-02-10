@@ -24,7 +24,7 @@ func (s *Scheduler) Schedule(settings schedulerSettings) error {
 	return s.ScheduleWithCtx(context.Background(), settings)
 }
 
-// Launches a Scheduler with the provided settings.
+// ScheduleWithCtx launches a Scheduler with the provided settings.
 //
 // Launches a time.Ticker that signals the execution of the callback function at regular intervals.
 // Returns an error only if invalid settings are provided (e.g., interval <= 0 or nil callback).
@@ -67,7 +67,7 @@ func (s *Scheduler) runSchedule(ctx context.Context) {
 	}
 }
 
-// Gracefully terminates the Scheduler by closing the quit channel.
+// Stop gracefully terminates the Scheduler by closing the quit channel.
 func (s *Scheduler) Stop() {
 	close(s.quit)
 }

@@ -6,13 +6,14 @@ import (
 	"log/slog"
 
 	"github.com/hickar/tg-remailer/internal/app/config"
+	"github.com/hickar/tg-remailer/internal/app/mailer"
 )
 
-type Remailer struct {
+type Daemon struct {
 	cfg       config.Config
 	logger    *slog.Logger
 	scheduler scheduler
-	runner    TaskRunner
+	runner    mailer.TaskRunner
 }
 
 type scheduler interface {
@@ -20,13 +21,13 @@ type scheduler interface {
 	Stop()
 }
 
-func NewRemailer(
+func NewDaemon(
 	cfg config.Config,
 	scheduler scheduler,
-	runner TaskRunner,
+	runner mailer.TaskRunner,
 	logger *slog.Logger,
-) *Remailer {
-	return &Remailer{
+) *Daemon {
+	return &Daemon{
 		cfg:       cfg,
 		scheduler: scheduler,
 		runner:    runner,
@@ -34,17 +35,10 @@ func NewRemailer(
 	}
 }
 
-// Launches scheduler, which utilizes built-in Ticker (https://pkg.go.dev/time#Ticker),
+// Start launches scheduler, which utilizes built-in Ticker (https://pkg.go.dev/time#Ticker),
 // and performs emails retrieval from mail server with graceful shutdown and high-level error handling.
-func (r *Remailer) Start(ctx context.Context) error {
+func (r *Daemon) Start(ctx context.Context) error {
 	errCh := make(chan error, 1)
-
-	// for _, client := range r.cfg.Clients {
-	// 	err := r.runner.Run(ctx, client)
-	// 	if err != nil {
-	// 		return fmt.Errorf("initial task execution failed: %w", err)
-	// 	}
-	// }
 
 	// Executes the TaskRunner job periodically with configurable mail polling interval.
 	// The job retrieves emails using IMAP, parses them, and forwards them to a specified channel.

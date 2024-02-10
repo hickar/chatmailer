@@ -16,6 +16,9 @@ import (
 
 	"github.com/hickar/tg-remailer/internal/app/config"
 	"github.com/hickar/tg-remailer/internal/app/daemon"
+	"github.com/hickar/tg-remailer/internal/app/forwarder"
+	"github.com/hickar/tg-remailer/internal/app/mailer"
+	"github.com/hickar/tg-remailer/internal/app/retriever"
 	"github.com/hickar/tg-remailer/internal/app/storage"
 )
 
@@ -36,22 +39,28 @@ func main() {
 		Level: slog.Level(cfg.LogLevel),
 	}))
 
-	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGABRT, syscall.SIGQUIT, syscall.SIGKILL, syscall.SIGTERM)
-	defer cancel()
+	telegramForwarder, err := forwarder.NewForwarder(&http.Client{}, logger, forwarder.TypeTelegram)
+	if err != nil {
+		logger.Error(fmt.Sprintf("failed to initialize forwarder: %v", err))
+		os.Exit(1)
+	}
 
-	runner := daemon.NewRunner(
+	runner := mailer.NewRunner(
 		storage.NewInMemoryStorage(),
-		daemon.NewIMAPRetriever(daemon.ImapDialerFunc(imapclient.DialTLS)),
-		daemon.NewForwarder(&http.Client{}, logger, config.ContactPointConfiguration}),
+		retriever.NewIMAPRetriever(retriever.ImapDialerFunc(imapclient.DialTLS)),
+		telegramForwarder,
 		logger.With(slog.String("module", "runner")),
 	)
 
-	remailer := daemon.NewRemailer(
+	remailer := daemon.NewDaemon(
 		cfg,
 		&daemon.Scheduler{},
 		runner,
 		logger.With(slog.String("module", "remailer")),
 	)
+
+	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGABRT, syscall.SIGQUIT, syscall.SIGKILL, syscall.SIGTERM)
+	defer cancel()
 
 	if err = remailer.Start(ctx); err != nil {
 		if !errors.Is(err, context.Canceled) {

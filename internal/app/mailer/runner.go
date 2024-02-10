@@ -1,4 +1,4 @@
-package daemon
+package mailer
 
 import (
 	"context"
@@ -44,7 +44,7 @@ func NewRunner(
 	}
 }
 
-// Retrieves emails for the specified client and forwards them to configured contact points.
+// Run retrieves emails for the specified client and forwards them to configured contact points.
 //
 // Updates client state (LastUIDNext, LastUIDValidity) in the operational memory storage
 // to not re-execute parsing and forwarding for already handled emails next time.
