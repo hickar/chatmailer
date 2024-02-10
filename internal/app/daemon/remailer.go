@@ -35,6 +35,8 @@ func NewRemailer(
 	}
 }
 
+// Launches scheduler, which utilizes built-in Ticker (https://pkg.go.dev/time#Ticker),
+// and performs emails retrieval from mail server with graceful shutdown and high-level error handling.
 func (r *Remailer) Start(ctx context.Context) error {
 	errCh := make(chan error, 1)
 
@@ -45,6 +47,8 @@ func (r *Remailer) Start(ctx context.Context) error {
 	// 	}
 	// }
 
+	// Every 10 minutes execute TaskRunner job with core logic of retrieval emails
+	// using IMAP protocol, parse them and forward to specified channel (as of now Telegram).
 	go func() {
 		r.scheduler.Schedule(func() {
 			for _, client := range r.cfg.Clients {
@@ -57,9 +61,15 @@ func (r *Remailer) Start(ctx context.Context) error {
 	}()
 	defer r.scheduler.Stop()
 
+	// Graceful termination and error handling
 	select {
+	// If the context is canceled (e.g., through external signal)
+	// returning the context's error to indicate graceful termination.
 	case <-ctx.Done():
 		return ctx.Err()
+
+	// If an error occurs during task execution returning the received
+	// error to signal the failure.
 	case err := <-errCh:
 		return err
 	}
