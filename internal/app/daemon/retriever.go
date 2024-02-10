@@ -16,27 +16,65 @@ import (
 	"github.com/hickar/tg-remailer/internal/app/mailer"
 )
 
-// MailRetriever retrieves mail messages from remote mail server.
-type MailRetriever interface {
-	GetMail(config.ClientConfig) (MailResponse, error)
+type imapDialer interface {
+	DialTLS(address string, options *imapclient.Options) (*imapclient.Client, error)
 }
 
-type MailSourceFunc func(config.ClientConfig) (MailResponse, error)
+type ImapDialerFunc func(string, *imapclient.Options) (*imapclient.Client, error)
 
-func (m MailSourceFunc) GetMail(mailCfg config.ClientConfig) (MailResponse, error) {
-	return m(mailCfg)
+func (f ImapDialerFunc) DialTLS(address string, options *imapclient.Options) (*imapclient.Client, error) {
+	return f(address, options)
 }
 
-type MailResponse struct {
-	LastUID         uint32
-	LastUIDValidity uint32
-	Messages        []*Message
+type imapRetriever struct {
+	dialer imapDialer
 }
 
-func IMAPGetMailFunc(client config.ClientConfig) (MailResponse, error) {
+func NewIMAPRetriever(dialer imapDialer) *imapRetriever {
+	return &imapRetriever{dialer: dialer}
+}
+
+// Retrieves emails from an IMAP server for specificied client.
+//
+// Execution flow:
+// 1. Connect to the IMAP server using TLS.
+// 2. Authenticate with the provided login credentials.
+// 3. Select the "inbox" mailbox (optionally marking messages as seen).
+// 4. Check if there are new messages based on UID validity and UIDNext comparison.
+// 5. If there are new messages:
+//   - Retrieve capabilities to determine if extended search is supported.
+//   - If filters are provided and extended search is supported:
+//   - Build a search criteria based on the filters and the client's LastUIDNext.
+//   - Perform a search on the server to get the UIDs of matching messages.
+//   - Otherwise, fetch all messages since the client's LastUIDNext (inclusive).
+//
+// 6. For each message:
+//   - Extract the UID, sender, recipients, CC recipients, date, and subject.
+//   - Process each part of the message (text body or attachment):
+//   - For text parts:
+//   - Read the content and determine MIME type and character set.
+//   - Add the body segment to the message.
+//   - For attachments (if inclusion is enabled):
+//   - Parse the attachment information (not yet implemented).
+//   - Add the attachment to the message (not yet implemented).
+//
+// 7. Return the retrieved messages and any encountered errors.
+// Lacks of appropriate error and behaviour handling, need to handle such cases:
+//   - Dial TLS failure
+//   - Login failure
+//   - Read mainbox failure
+//   - LastUIDNext === 0 case
+//   - Capability error
+//   - Search builder and Lexer errors
+//   - Message, Headers and Attachments errors
+//
+// I suppose we need to enhance errors from all child functions and handle them in
+// GetMail with additional information and context for each error. It will greatly
+// improve debugging.GetMail
+func (r *imapRetriever) GetMail(client config.ClientConfig) (MailResponse, error) {
 	var mailResp MailResponse
 
-	c, err := imapclient.DialTLS(client.Address, &imapclient.Options{
+	c, err := r.dialer.DialTLS(client.Address, &imapclient.Options{
 		DebugWriter:           nil,
 		UnilateralDataHandler: &imapclient.UnilateralDataHandler{},
 		WordDecoder:           &mime.WordDecoder{CharsetReader: charset.Reader},
@@ -78,7 +116,7 @@ func IMAPGetMailFunc(client config.ClientConfig) (MailResponse, error) {
 		}
 	} else {
 		uidSet = imap.UIDSet{imap.UIDRange{
-			Start: imap.UID(mailResp.LastUID) - 10,
+			Start: imap.UID(client.LastUIDNext),
 			Stop:  imap.UID(mailResp.LastUID),
 		}}
 	}
@@ -99,8 +137,11 @@ func IMAPGetMailFunc(client config.ClientConfig) (MailResponse, error) {
 		if err != nil {
 			return mailResp, err
 		}
+		// TODO: handle message filtering in case of remote IMAP server inability
+		// to filter messages based on sent search criteria
+		//
 		// if !capabilities.Has(imap.CapESearch) {
-		// 	// TODO: handle message filtering
+		// 	...
 		// }
 
 		mailResp.Messages = append(mailResp.Messages, message)

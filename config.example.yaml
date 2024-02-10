@@ -1,6 +1,11 @@
 tg_bot_token: "tg_bot_token"
-refresh_interval: 60s
-log_level: "info"
+mail_poll_interval: 60s
+mail_poll_task_timeout: 30s
+
+# 'slog' standard library integer values are used for log levels.
+# -4 - DEBUG, 0 - INFO, 4 - WARN, 8 - ERROR.
+log_level: 0
+
 clients:
   - proto: "imap"
     address: "your.imap.server.com:993"
@@ -10,4 +15,9 @@ clients:
     include_images: false
     contact_points:
       - type: "telegram"
-      - tg_chat_id: "tg_chat_id"
+        tg_chat_id: "tg_chat_id"
+        silent_mode: true # Sends messages in silent mode (Optional, defaults to 'false').
+        disable_forwarding: true # Forbid to forward messages sent by bot (Optional, defaults to 'false').
+        # Custom message template (Optional). If not specified, default one is used.
+        # For templating standard Go template engine is used.
+        template: "custom template"

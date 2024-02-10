@@ -5,11 +5,14 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"log"
 	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
+
+	"github.com/emersion/go-imap/v2/imapclient"
 
 	"github.com/hickar/tg-remailer/internal/app/config"
 	"github.com/hickar/tg-remailer/internal/app/daemon"
@@ -24,22 +27,22 @@ var (
 func main() {
 	flag.Parse()
 
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
-		Level: slog.LevelDebug,
-	}))
-
 	cfg, err := config.LoadConfig(*configFilepath, *envFilepath)
 	if err != nil {
-		logger.Error(fmt.Sprintf("failed to load configuration: %s", err))
+		log.Fatalf(fmt.Sprintf("failed to load configuration: %s", err))
 	}
+
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
+		Level: slog.Level(cfg.LogLevel),
+	}))
 
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGABRT, syscall.SIGQUIT, syscall.SIGKILL, syscall.SIGTERM)
 	defer cancel()
 
 	runner := daemon.NewRunner(
 		storage.NewInMemoryStorage(),
-		daemon.MailSourceFunc(daemon.IMAPGetMailFunc),
-		daemon.NewTelegramForwarder(&http.Client{}, logger.With(slog.String("module", "telegram_forwarder"))),
+		daemon.NewIMAPRetriever(daemon.ImapDialerFunc(imapclient.DialTLS)),
+		daemon.NewForwarder(&http.Client{}, logger, config.ContactPointConfiguration}),
 		logger.With(slog.String("module", "runner")),
 	)
 

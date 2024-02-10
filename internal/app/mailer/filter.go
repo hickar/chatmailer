@@ -9,6 +9,44 @@ import (
 	"github.com/emersion/go-imap/v2"
 )
 
+// Parameters:
+//
+// - filterExpr (string): The filter expression to parse. It supports a subset of IMAP SEARCH syntax, allowing users to specify criteria based on:
+//   - Flags: JUNK, SEEN, UNSEEN, DRAFT, UNDRAFT, DELETED, UNDELETED, FLAGGED, UNFLAGGED, PHISHING, WILDCARD, FORWARDED, IMPORTANT, ANSWERED, UNANSWERED
+//   - Header fields: FROM, TO, SUBJECT, and others
+//   - Message body text: BODY, TEXT
+//   - Comparisons: ==, !=
+//   - Logical operators: && (AND), || (OR), ! (NOT)
+//   - Grouping with parentheses: ( )
+//
+// Returns:
+//
+// - *imap.SearchCriteria: A pointer to an `imap.SearchCriteria` struct representing the parsed filter, or nil if the expression is invalid.
+// - error: An error if the filter expression is malformed or could not be parsed.
+//
+// Examples:
+//
+// - Find unread messages from a specific sender: "FROM <email address removed> UNSEEN"
+// - Find flagged messages with "important" in the subject: "FLAGGED SUBJECT == 'important'"
+// - Find messages containing the word "urgent" in the body: "BODY CONTAINS 'urgent'"
+// - Combine multiple criteria: "(FROM <email address removed> OR TO 'someone@example.com') AND SEEN"
+//
+// Supported Syntax:
+//
+// - Flags: See list under "Parameters".
+// - Header fields: Any valid IMAP header field name.
+// - Message body keywords: BODY or TEXT.
+// - Comparison operators: ==, !=.
+// - Logical operators: && (AND), || (OR), ! (NOT).
+// - Grouping with parentheses: ( ).
+//
+// Errors:
+//
+// - Returns an error if the filter expression is malformed or uses unsupported syntax.
+//
+// See Also:
+//
+// - imap.SearchCriteria: https://pkg.go.dev/github.com/emersion/go-imap/v2#SearchCriteria
 func ParseFilter(filterExpr string) (*imap.SearchCriteria, error) {
 	criteria, _, err := parseFilterExpression([]rune(filterExpr), 0)
 	return criteria, err
@@ -354,10 +392,6 @@ func addNotCriteria(c1 *imap.SearchCriteria) *imap.SearchCriteria {
 	return &imap.SearchCriteria{
 		Not: []imap.SearchCriteria{*c1},
 	}
-}
-
-func intersectCriteria(c1, c2 *imap.SearchCriteria) *imap.SearchCriteria {
-	return c1
 }
 
 func assignFlag(c *imap.SearchCriteria, flagToken string) *imap.SearchCriteria {

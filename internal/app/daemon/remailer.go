@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"time"
 
 	"github.com/hickar/tg-remailer/internal/app/config"
 )
@@ -17,7 +16,7 @@ type Remailer struct {
 }
 
 type scheduler interface {
-	Schedule(func(), time.Duration)
+	ScheduleWithCtx(context.Context, schedulerSettings) error
 	Stop()
 }
 
@@ -47,17 +46,29 @@ func (r *Remailer) Start(ctx context.Context) error {
 	// 	}
 	// }
 
-	// Every 10 minutes execute TaskRunner job with core logic of retrieval emails
-	// using IMAP protocol, parse them and forward to specified channel (as of now Telegram).
+	// Executes the TaskRunner job periodically with configurable mail polling interval.
+	// The job retrieves emails using IMAP, parses them, and forwards them to a specified channel.
 	go func() {
-		r.scheduler.Schedule(func() {
-			for _, client := range r.cfg.Clients {
-				err := r.runner.Run(ctx, client)
-				if err != nil {
-					errCh <- fmt.Errorf("task execution failed: %w", err)
+		err := r.scheduler.ScheduleWithCtx(ctx, schedulerSettings{
+			LaunchInitially: true,                   // Execute the job immediately upon scheduling.
+			Interval:        r.cfg.MailPollInterval, // Time interval between job executions.
+			Callback: func() {
+				tctx, cancel := context.WithTimeout(ctx, r.cfg.MailPollTaskTimeout)
+				defer cancel()
+
+				for _, client := range r.cfg.Clients {
+					err := r.runner.Run(tctx, client)
+					if err != nil {
+						// TODO: handle client configuration ignoring
+						// in case of invalid settings specified
+						errCh <- fmt.Errorf("task execution failed: %w", err)
+					}
 				}
-			}
-		}, time.Minute*10)
+			},
+		})
+		if err != nil {
+			errCh <- fmt.Errorf("error occurred while launching the scheduler: %w", err)
+		}
 	}()
 	defer r.scheduler.Stop()
 

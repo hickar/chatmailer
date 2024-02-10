@@ -19,6 +19,10 @@ type Forwarder interface {
 	Forward(context.Context, config.ContactPointConfiguration, []*Message) error
 }
 
+type MailRetriever interface {
+	GetMail(config.ClientConfig) (MailResponse, error)
+}
+
 type TaskRunner struct {
 	clientStorage ClientStorage
 	mailRetriever MailRetriever
@@ -40,11 +44,21 @@ func NewRunner(
 	}
 }
 
+// Retrieves emails for the specified client and forwards them to configured contact points.
+//
+// Updates client state (LastUIDNext, LastUIDValidity) in the operational memory storage
+// to not re-execute parsing and forwarding for already handled emails next time.
+//
+// Handles errors during retrieval and forwarding.
+// Returns an error if any of the following occur:
+// - The client has no configured contact points.
+// - Mail retrieval fails.
+// - Forwarding to any contact point fails.
 func (r *TaskRunner) Run(ctx context.Context, client config.ClientConfig) error {
 	logger := r.logger.With(slog.String("client", client.Login))
-	logger.Debug("starting email retrieval", slog.String("client", client.Login))
+	logger.Debug("starting email retrieval")
 
-	if len(client.Filters) == 0 {
+	if len(client.ContactPoints) == 0 {
 		logger.Error("client has no contact points specified")
 		return errors.New("client has no contact points specified")
 	}
@@ -57,7 +71,7 @@ func (r *TaskRunner) Run(ctx context.Context, client config.ClientConfig) error 
 
 	mailResp, err := r.mailRetriever.GetMail(client)
 	if err != nil {
-		logger.Error("mail retrieval failed", slog.String("client", client.Login))
+		logger.Error(fmt.Sprintf("mail retrieval failed: %v", err))
 		return fmt.Errorf("failed to retrieve mail: %w", err)
 	}
 
@@ -71,7 +85,7 @@ func (r *TaskRunner) Run(ctx context.Context, client config.ClientConfig) error 
 	client.LastUIDValidity = mailResp.LastUIDValidity
 	r.clientStorage.Set(client.Login, client)
 
-	for _, contactPoint := range client.ContactPoint {
+	for _, contactPoint := range client.ContactPoints {
 		err = r.forwarder.Forward(ctx, contactPoint, mailResp.Messages)
 		if err != nil {
 			return fmt.Errorf("failed to forward message: %w", err)
