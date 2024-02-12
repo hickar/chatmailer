@@ -11,8 +11,8 @@ type inmemoryClientStorage struct {
 	mu   sync.Mutex
 }
 
-// In-memory storage. Will be deleted and re-created on new deployments,
-// or on fail.
+// NewInMemoryStorage creates new inmem storage instance.
+// Storage will be deleted and re-created on new deployments or on fail.
 // That means we will have duplicate messages forwarded in Telegram.
 // Need to consider some simple persistence for this reason.
 func NewInMemoryStorage() *inmemoryClientStorage {

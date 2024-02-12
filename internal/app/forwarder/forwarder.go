@@ -17,6 +17,7 @@ type telegramForwarder struct {
 
 const TypeTelegram = "telegram"
 
+// NewForwarder creates new instance of object implementing Forwarder interface.
 // Choose type of client which will receive emails.
 // Default is Telegram, but it's possible to add new clients in future
 // if we implement loop.

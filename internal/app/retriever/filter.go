@@ -9,6 +9,7 @@ import (
 	"github.com/emersion/go-imap/v2"
 )
 
+// ParseFilter creates *imap.SearchCriteria for filtering messages by parsing provided logical expression.
 // Parameters:
 //
 // - filterExpr (string): The filter expression to parse. It supports a subset of IMAP SEARCH syntax, allowing users to specify criteria based on:

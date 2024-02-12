@@ -55,6 +55,9 @@ linters-settings:
       - name: exported 
         disabled: true
 
+  stylecheck:
+    checks: ["all", "-ST1000"]
+
 
 issues:
   exclude-use-default: false
