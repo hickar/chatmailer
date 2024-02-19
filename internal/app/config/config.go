@@ -35,12 +35,13 @@ type ClientConfig struct {
 }
 
 type ContactPointConfiguration struct {
-	TGBotToken        string `yaml:"tg_bot_token"`       // Telegram bot token for sending notifications.
-	TGChatID          int64  `yaml:"tg_chat_id"`         // Telegram chat ID for receiving notifications.
-	SilentMode        bool   `yaml:"silent_mode"`        // Whether to send notifications silently (without notification sound).
-	DisableForwarding bool   `yaml:"disable_forwarding"` // Whether to disable message forwarding in Telegram.
-	Template          string `yaml:"template"`           // Optional template for customizing notification content.
-	Type              string `yaml:"type"`               // Forwarding client type, for example telegram
+	TGBotToken        string  `yaml:"tg_bot_token"`         // Telegram bot token for sending notifications.
+	TGChatID          int64   `yaml:"tg_chat_id"`           // Telegram chat ID for receiving notifications.
+	SilentMode        bool    `yaml:"silent_mode"`          // Whether to send notifications silently (without notification sound).
+	DisableForwarding bool    `yaml:"disable_forwarding"`   // Whether to disable message forwarding in Telegram.
+	Template          string  `yaml:"template"`             // Optional template for customizing notification content.
+	Type              string  `yaml:"type"`                 // Forwarding client type, for example telegram.
+	ParseMode         *string `yaml:"parse_mode,omitempty"` // Mode for parsing entities in the message text. Possible values: 'HTML', 'MarkdownV2', 'Markdown'.
 }
 
 func LoadConfig(cfgFilepath, envFilepath string) (Config, error) {
@@ -52,7 +53,7 @@ func LoadConfig(cfgFilepath, envFilepath string) (Config, error) {
 		}
 	}
 
-	// Need to consider secure alternatives in production.
+	//TODO: Need to consider secure alternatives in production.
 	//nolint:gosec
 	fileBytes, err := os.ReadFile(cfgFilepath)
 	if err != nil {

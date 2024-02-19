@@ -3,7 +3,7 @@ package storage
 import (
 	"sync"
 
-	"github.com/hickar/tg-remailer/internal/app/config"
+	"github.com/hickar/chatmailer/internal/app/config"
 )
 
 type inmemoryClientStorage struct {

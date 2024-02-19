@@ -15,9 +15,13 @@ clients:
     include_images: false
     contact_points:
       - type: "telegram"
-        tg_chat_id: "tg_chat_id"
+        tg_chat_id: your_chat_id
         silent_mode: true # Sends messages in silent mode (Optional, defaults to 'false').
         disable_forwarding: true # Forbid to forward messages sent by bot (Optional, defaults to 'false').
         # Custom message template (Optional). If not specified, default one is used.
         # For templating standard Go template engine is used.
         template: "custom template"
+        # Mode for parsing entities in the message text (Optional).
+        # Possible values: '', 'HTML', 'MarkdownV2', 'Markdown'. 
+        # Defaults to 'MarkdownV2' 
+        parse_mode: "MarkdownV2" 

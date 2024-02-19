@@ -5,11 +5,11 @@ import "time"
 type Message struct {
 	BodyParts   []BodySegment
 	Subject     string
-	From        []string
-	To          []string
-	CC          []string
-	BCC         []string
-	ReplyTo     []string
+	From        []Address
+	To          []Address
+	CC          []Address
+	BCC         []Address
+	ReplyTo     []Address
 	Date        time.Time
 	Mailbox     string
 	UID         uint32
@@ -32,4 +32,9 @@ type MailResponse struct {
 	LastUID         uint32
 	LastUIDValidity uint32
 	Messages        []*Message
+}
+
+type Address struct {
+	Address string
+	Name    string
 }

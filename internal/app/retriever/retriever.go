@@ -12,8 +12,8 @@ import (
 	"github.com/emersion/go-message/charset"
 	"github.com/emersion/go-message/mail"
 
-	"github.com/hickar/tg-remailer/internal/app/config"
-	"github.com/hickar/tg-remailer/internal/app/mailer"
+	"github.com/hickar/chatmailer/internal/app/config"
+	"github.com/hickar/chatmailer/internal/app/mailer"
 )
 
 type imapDialer interface {
@@ -107,17 +107,15 @@ func (r *imapRetriever) GetMail(client config.ClientConfig) (mailer.MailResponse
 		return mailResp, err
 	}
 
-	var uidSet imap.UIDSet
+	uidSet := imap.UIDSet{imap.UIDRange{
+		Start: imap.UID(client.LastUIDNext),
+		Stop:  imap.UID(mailResp.LastUID),
+	}}
 	if len(client.Filters) > 0 && capabilities.Has(imap.CapESearch) {
 		uidSet, err = getUIDSetBySearchCriteria(c, client)
 		if err != nil {
 			return mailResp, err
 		}
-	} else {
-		uidSet = imap.UIDSet{imap.UIDRange{
-			Start: imap.UID(client.LastUIDNext),
-			Stop:  imap.UID(mailResp.LastUID),
-		}}
 	}
 
 	fetchCmd := c.Fetch(uidSet, fetchOptions)
@@ -211,10 +209,10 @@ func processMessage(msg *imapclient.FetchMessageData, client config.ClientConfig
 
 	message := &mailer.Message{
 		UID:  uint32(uidSection.UID),
-		From: mr.Header.Values("From"),
-		To:   mr.Header.Values("To"),
-		CC:   mr.Header.Values("CC"),
-		BCC:  mr.Header.Values("BCC"),
+		From: parseAddress(mr.Header, "From"),
+		To:   parseAddress(mr.Header, "To"),
+		CC:   parseAddress(mr.Header, "CC"),
+		BCC:  parseAddress(mr.Header, "BCC"),
 	}
 	message.Date, _ = mr.Header.Date()
 	message.Subject, _ = mr.Header.Text("Subject")
@@ -289,6 +287,20 @@ func parseContentTypeHeader(header string) (string, string, bool) {
 	}
 
 	return mimeType, charset, true
+}
+
+func parseAddress(header mail.Header, addressListName string) []mailer.Address {
+	addrList, _ := header.AddressList(addressListName)
+	addrs := make([]mailer.Address, 0, len(addrList))
+
+	for _, addr := range addrList {
+		addrs = append(addrs, mailer.Address{
+			Name:    addr.Name,
+			Address: addr.Address,
+		})
+	}
+
+	return addrs
 }
 
 func areNoNewMessages(mailbox *imap.SelectData, client config.ClientConfig) bool {

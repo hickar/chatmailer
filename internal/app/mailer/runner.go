@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/hickar/tg-remailer/internal/app/config"
+	"github.com/hickar/chatmailer/internal/app/config"
 )
 
 type ClientStorage interface {

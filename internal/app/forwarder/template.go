@@ -3,63 +3,65 @@ package forwarder
 import (
 	"bytes"
 	"fmt"
+	"html"
 	"strings"
 	"text/template"
 
-	md "github.com/JohannesKaufmann/html-to-markdown"
-	"github.com/PuerkitoBio/goquery"
-
-	"github.com/hickar/tg-remailer/internal/app/mailer"
+	"github.com/hickar/chatmailer/internal/app/mailer"
 )
 
 const defaultMessageTemplateString = `
 {{- define "addresses" -}}
-	{{- with . -}}
-		{{- range $idx, $address := . -}}
-			{{- if eq $idx 0 -}}
-				{{- printf "[%s](%s)" $address $address -}}
-			{{- else -}}
-				{{- printf ", [%s](%s)" $address $address -}}
-			{{- end -}}
+	{{- range $idx, $address := . -}}
+		{{ $escapedAddress := escapeMarkdown $address.Address }}
+
+		{{- if ne $idx 0 -}}
+			{{- printf ", " -}}
 		{{- end -}}
+
+		{{- printf "[%s](mailto://%s)" $escapedAddress $address.Address -}}
 	{{- end -}}
 {{- end -}}
 
-**From**: {{template "addresses" .From}}
-**To**: {{template "addresses" .To}}
-**Reply To**: {{template "addresses" .ReplyTo}}
-**CC**: {{template "addresses" .CC}}
-**BCC**: {{template "addresses" .BCC}}
-{{with .Subject}}**Subject**: {{.}}{{end}}
-{{with .Date}}**Date**: {{ .Format "Jan 02 2006 15:04:05" }}{{end}}
-{{- range $part := .BodyParts  -}}
-	{{- if eq $part.MIMETYPE "text/html" -}}
-		{{- htmltomarkdown $part.Content -}}
-	{{- else if eq $part.MIMETYPE "text/plain" -}}
-		{{- $part.Content -}}
-	{{- end -}}
-{{- end -}}
-`
+{{- if .From }}*From*: {{ template "addresses" .From }}
+{{ end }}
+{{- if .To }}*To*: {{ template "addresses" .To }}
+{{ end }}
+{{- if .ReplyTo }}*Reply To*: {{ template "addresses" .ReplyTo }}
+{{ end }}
+{{- if .CC }}*CC*: {{ template "addresses" .CC }}
+{{ end }}
+{{- if .BCC }}*BCC*: {{ template "addresses" .BCC }}
+{{ end }}
+{{- if .Subject }}*Subject*: {{ .Subject }}
+{{ end }}
+{{- if .Date }}*Date*: {{ .Date.Format "Jan 02 2006 15:04:05" }}
+{{- end }}`
 
-var (
-	templateFuncMap = template.FuncMap{
-		"join":           strings.Join,
-		"htmltomarkdown": htmlToMarkDown,
-	}
-	defaultTemplate = template.Must(template.New("").Funcs(templateFuncMap).Parse(defaultMessageTemplateString))
-)
+var templateFuncs = template.FuncMap{
+	"escapeMarkdown": escapeMarkdown,
+	"escapeHTML":     escapeHTML,
+	"join":           strings.Join,
+	"replace":        strings.Replace,
+	"replaceAll":     strings.ReplaceAll,
+	"upper":          strings.ToUpper,
+	"lower":          strings.ToLower,
+	"contains":       strings.Contains,
+	"trim":           strings.Trim,
+	"trimSpace":      strings.TrimSpace,
+}
+
+var defaultTemplate = template.Must(template.New("").Funcs(templateFuncs).Parse(defaultMessageTemplateString))
 
 func renderTemplate(message *mailer.Message, templateStr string) (string, error) {
 	var buf bytes.Buffer
-	var err error
 
 	if templateStr == "" {
-		err = defaultTemplate.Execute(&buf, message)
+		err := defaultTemplate.Execute(&buf, message)
 		return buf.String(), err
 	}
 
-	var tmpl *template.Template
-	tmpl, err = template.New("custom").Funcs(templateFuncMap).Parse(templateStr)
+	tmpl, err := template.New("custom").Funcs(templateFuncs).Parse(templateStr)
 	if err != nil {
 		return "", fmt.Errorf("custom template creation error: %w", err)
 	}
@@ -68,29 +70,51 @@ func renderTemplate(message *mailer.Message, templateStr string) (string, error)
 	return buf.String(), err
 }
 
-func htmlToMarkDown(html string) (string, error) {
-	c := md.NewConverter("", true, &md.Options{
-		// Fence:              "",
-		// EmDelimiter:        "",
-		StrongDelimiter: "*",
-	}).AddRules(extendedMDRules...)
-	return c.ConvertString(html)
+func escapeMarkdown(s string) string {
+	return escapeCharacters(s, markdownSpecialChars)
 }
 
-var extendedMDRules = []md.Rule{
-	// Rule for underlined text conversion
-	{
-		Filter: []string{"u", "ins"},
-		Replacement: func(content string, _ *goquery.Selection, _ *md.Options) *string {
-			return md.String("__" + content + "__")
-		},
-	},
-	// Rule for striked through text conversion
-	{
-		Filter: []string{"s", "strike", "del"},
-		Replacement: func(content string, _ *goquery.Selection, _ *md.Options) *string {
-			content = strings.ReplaceAll(content, "~", "\\~")
-			return md.String("~" + content + "~")
-		},
-	},
+func escapeHTML(s string) string {
+	return html.EscapeString(s)
+}
+
+func escapeCharacters(s string, charMap map[rune]struct{}) string {
+	var (
+		buf strings.Builder
+		ok  bool
+	)
+
+	buf.Grow(len(s))
+
+	for _, c := range s {
+		if _, ok = charMap[c]; ok {
+			buf.WriteString(`\`)
+		}
+
+		buf.WriteRune(c)
+	}
+
+	return buf.String()
+}
+
+var markdownSpecialChars = map[rune]struct{}{
+	'_': {},
+	'*': {},
+	'[': {},
+	']': {},
+	'(': {},
+	')': {},
+	'~': {},
+	'`': {},
+	'>': {},
+	'#': {},
+	'+': {},
+	'-': {},
+	'=': {},
+	'|': {},
+	'{': {},
+	'}': {},
+	'.': {},
+	'!': {},
+	'"': {},
 }

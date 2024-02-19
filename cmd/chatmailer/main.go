@@ -14,17 +14,17 @@ import (
 
 	"github.com/emersion/go-imap/v2/imapclient"
 
-	"github.com/hickar/tg-remailer/internal/app/config"
-	"github.com/hickar/tg-remailer/internal/app/daemon"
-	"github.com/hickar/tg-remailer/internal/app/forwarder"
-	"github.com/hickar/tg-remailer/internal/app/mailer"
-	"github.com/hickar/tg-remailer/internal/app/retriever"
-	"github.com/hickar/tg-remailer/internal/app/storage"
+	"github.com/hickar/chatmailer/internal/app/config"
+	"github.com/hickar/chatmailer/internal/app/daemon"
+	"github.com/hickar/chatmailer/internal/app/forwarder"
+	"github.com/hickar/chatmailer/internal/app/mailer"
+	"github.com/hickar/chatmailer/internal/app/retriever"
+	"github.com/hickar/chatmailer/internal/app/storage"
 )
 
 var (
 	configFilepath = flag.String("config", "./config.yaml", "Filepath to configuration file. Default is '.config.yaml'")
-	envFilepath    = flag.String("env-file", "", "Filepath to environment variables file. Default is '.env'")
+	envFilepath    = flag.String("env-file", "./.env", "Filepath to environment variables file. Default is '.env'")
 )
 
 func main() {
@@ -39,16 +39,14 @@ func main() {
 		Level: slog.Level(cfg.LogLevel),
 	}))
 
-	telegramForwarder, err := forwarder.NewForwarder(&http.Client{}, logger, forwarder.TypeTelegram)
-	if err != nil {
-		logger.Error(fmt.Sprintf("failed to initialize forwarder: %v", err))
-		os.Exit(1)
-	}
-
 	runner := mailer.NewRunner(
 		storage.NewInMemoryStorage(),
 		retriever.NewIMAPRetriever(retriever.ImapDialerFunc(imapclient.DialTLS)),
-		telegramForwarder,
+		forwarder.NewTelegramForwarder(
+			&http.Client{},
+			cfg.TGBotToken,
+			logger.With(slog.String("module", "telegram_forwarder")),
+		),
 		logger.With(slog.String("module", "runner")),
 	)
 

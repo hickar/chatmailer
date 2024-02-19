@@ -7,5 +7,6 @@
 *.log
 config.yaml
 .env*
+tmp/*
 
 chatmailer
