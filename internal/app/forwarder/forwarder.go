@@ -13,16 +13,16 @@ import (
 )
 
 type telegramForwarder struct {
-	client   *http.Client
-	botToken string
-	logger   *slog.Logger
+	client *http.Client
+	cfg    config.TelegramConfiguration
+	logger *slog.Logger
 }
 
-func NewTelegramForwarder(client *http.Client, botToken string, logger *slog.Logger) *telegramForwarder {
+func NewTelegramForwarder(client *http.Client, cfg config.TelegramConfiguration, logger *slog.Logger) *telegramForwarder {
 	return &telegramForwarder{
-		client:   client,
-		botToken: botToken,
-		logger:   logger,
+		client: client,
+		cfg:    cfg,
+		logger: logger,
 	}
 }
 
@@ -41,34 +41,34 @@ func (t *telegramForwarder) Forward(ctx context.Context, config config.ContactPo
 }
 
 func (t *telegramForwarder) sendMessage(ctx context.Context, config config.ContactPointConfiguration, msgBody *bytes.Buffer) error {
-	msgParseMode := telegramParseModeMarkdownV2
+	msgParseMode := tgParseModeMarkdownV2
 	if config.ParseMode != nil {
 		msgParseMode = *config.ParseMode
 	}
 
-	if msgBody.Len() <= telegramMsgTextSizeLimit {
-		reqData := telegramSendMsgRequest{
+	if msgBody.Len() <= tgMsgTextSizeLimit {
+		reqData := tgSendMsgRequest{
 			ChatID:              config.TGChatID,
 			ParseMode:           msgParseMode,
 			Text:                msgBody.String(),
 			DisableNotification: config.SilentMode,
 			ProtectContent:      config.DisableForwarding,
 		}
-		return t.makeRequest(ctx, telegramAPISendMessageMethod, reqData)
+		return t.makeRequest(ctx, tgAPISendMessageMethod, reqData)
 	}
 
 	// Due to Telegram's limit on message text size,
 	// we proceed to split and send message in 4096-byte sized chunks.
 	for msgBody.Len() > 0 {
-		msgChunk := msgBody.Next(telegramMsgTextSizeLimit)
-		reqData := telegramSendMsgRequest{
+		msgChunk := msgBody.Next(tgMsgTextSizeLimit)
+		reqData := tgSendMsgRequest{
 			ChatID:              config.TGChatID,
 			ParseMode:           msgParseMode,
 			Text:                string(msgChunk),
 			DisableNotification: config.SilentMode,
 			ProtectContent:      config.DisableForwarding,
 		}
-		if err := t.makeRequest(ctx, telegramAPISendMessageMethod, reqData); err != nil {
+		if err := t.makeRequest(ctx, tgAPISendMessageMethod, reqData); err != nil {
 			return err
 		}
 	}
@@ -85,7 +85,7 @@ func (t *telegramForwarder) makeRequest(ctx context.Context, method string, payl
 	req, err := http.NewRequestWithContext(
 		ctx,
 		http.MethodPost,
-		fmt.Sprintf(telegramAPIURLTemplate, t.botToken, method),
+		fmt.Sprintf(tgAPIURLTemplate, t.cfg.BotToken, method),
 		bytes.NewReader(reqPayloadBytes),
 	)
 	if err != nil {
@@ -99,7 +99,7 @@ func (t *telegramForwarder) makeRequest(ctx context.Context, method string, payl
 		return err
 	}
 
-	var respData telegramResponse
+	var respData tgResponse
 	if err = json.NewDecoder(resp.Body).Decode(&respData); err != nil {
 		return err
 	}
@@ -111,28 +111,44 @@ func (t *telegramForwarder) makeRequest(ctx context.Context, method string, payl
 	return nil
 }
 
-type telegramSendMsgRequest struct {
-	ChatID              int64  `json:"chat_id"`
-	ParseMode           string `json:"parse_mode"`
-	Text                string `json:"text"`
-	DisableNotification bool   `json:"disable_notification,omitempty"`
-	ProtectContent      bool   `json:"protect_content,omitempty"`
+type tgSendMsgRequest struct {
+	ChatID              int64          `json:"chat_id"`
+	ParseMode           string         `json:"parse_mode"`
+	Text                string         `json:"text"`
+	DisableNotification bool           `json:"disable_notification,omitempty"`
+	ProtectContent      bool           `json:"protect_content,omitempty"`
+	ReplyMarkup         tgInlineMarkup `json:"reply_markup,omitempty"`
 }
 
-type telegramResponse struct {
+type tgInlineMarkup struct {
+	Keyboard [][]tgInlineButton `json:"inline_button"`
+}
+
+type tgInlineButton struct {
+	Text         string       `json:"text"`
+	URL          string       `json:"url,omitempty"`
+	CallbackData string       `json:"callback_data,omitempty"`
+	WebApp       tgWebAppInfo `json:"web_app,omitempty"`
+}
+
+type tgWebAppInfo struct {
+	URL string `json:"url"`
+}
+
+type tgResponse struct {
 	Ok          bool   `json:"ok"`
 	Description string `json:"description"`
 	Code        int    `json:"error_code"`
 }
 
-const telegramMsgTextSizeLimit = 4096
+const tgMsgTextSizeLimit = 4096
 
-const telegramAPIURLTemplate = "https://api.telegram.org/bot%s/%s"
+const tgAPIURLTemplate = "https://api.telegram.org/bot%s/%s"
 
-const telegramAPISendMessageMethod = "sendMessage"
+const tgAPISendMessageMethod = "sendMessage"
 
-const telegramParseModeHTML = "HTML"
+const tgParseModeHTML = "HTML"
 
-const telegramParseModeMarkdownV2 = "MarkdownV2"
+const tgParseModeMarkdownV2 = "MarkdownV2"
 
-const telegramParseModeMarkdown = "Markdown"
+const tgParseModeMarkdown = "Markdown"

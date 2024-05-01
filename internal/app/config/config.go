@@ -11,14 +11,23 @@ import (
 )
 
 type Config struct {
-	TGBotToken          string         `yaml:"tg_bot_token"`           // Telegram bot token for sending notifications.
-	MailPollInterval    time.Duration  `yaml:"mail_poll_interval"`     // Interval between email polling tasks.
-	MailPollTaskTimeout time.Duration  `yaml:"mail_poll_task_timeout"` // Timeout for individual email processing tasks.
-	RetryCount          int            `yaml:"retry_count"`            // Number of retries for failed email processing tasks.
-	RetryDelayMin       int            `yaml:"retry_delay_min"`        // Minimum delay between retries in seconds.
-	RetryDelayMax       int            `yaml:"retry_delay_max"`        // Maximum delay between retries in seconds.
-	LogLevel            int            `yaml:"log_level"`              // Logging level (e.g., 0: debug, 1: info, etc.).
-	Clients             []ClientConfig `yaml:"clients"`                // List of email client configurations.
+	Forwarders          ForwarderConfiguration `yaml:"forwarders"`
+	MailPollInterval    time.Duration          `yaml:"mail_poll_interval"`     // Interval between email polling tasks.
+	MailPollTaskTimeout time.Duration          `yaml:"mail_poll_task_timeout"` // Timeout for individual email processing tasks.
+	RetryCount          int                    `yaml:"retry_count"`            // Number of retries for failed email processing tasks.
+	RetryDelayMin       int                    `yaml:"retry_delay_min"`        // Minimum delay between retries in seconds.
+	RetryDelayMax       int                    `yaml:"retry_delay_max"`        // Maximum delay between retries in seconds.
+	LogLevel            int                    `yaml:"log_level"`              // Logging level (e.g., 0: debug, 1: info, etc.).
+	Clients             []ClientConfig         `yaml:"clients"`                // List of email client configurations.
+}
+
+type ForwarderConfiguration struct {
+	Telegram TelegramConfiguration `yaml:"telegram"`
+}
+
+type TelegramConfiguration struct {
+	BotToken  string `yaml:"bot_token"`
+	WebAppURL string `yaml:"web_app_url"`
 }
 
 type ClientConfig struct {

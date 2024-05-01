@@ -1,6 +1,10 @@
-tg_bot_token: "tg_bot_token"
 mail_poll_interval: 60s
 mail_poll_task_timeout: 30s
+
+forwarders:
+  telegram:
+    bot_token: "tg_bot_token"
+    web_app_url: "your_tg_web_app_url"
 
 # 'slog' standard library integer values are used for log levels.
 # -4 - DEBUG, 0 - INFO, 4 - WARN, 8 - ERROR.

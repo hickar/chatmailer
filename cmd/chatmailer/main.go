@@ -44,7 +44,7 @@ func main() {
 		retriever.NewIMAPRetriever(retriever.ImapDialerFunc(imapclient.DialTLS)),
 		forwarder.NewTelegramForwarder(
 			&http.Client{},
-			cfg.TGBotToken,
+			cfg.Forwarders.Telegram,
 			logger.With(slog.String("module", "telegram_forwarder")),
 		),
 		logger.With(slog.String("module", "runner")),

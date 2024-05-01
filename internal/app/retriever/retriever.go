@@ -95,12 +95,12 @@ func (r *imapRetriever) GetMail(client config.ClientConfig) (mailer.MailResponse
 	mailResp.LastUIDValidity = mailbox.UIDValidity
 	mailResp.LastUID = uint32(mailbox.UIDNext)
 
-	if areNoNewMessages(mailbox, client) {
-		return mailResp, nil
-	}
-	if client.LastUIDNext == 0 {
-		return mailResp, nil
-	}
+	// if areNoNewMessages(mailbox, client) {
+	// 	return mailResp, nil
+	// }
+	// if client.LastUIDNext == 0 {
+	// 	return mailResp, nil
+	// }
 
 	capabilities, err := c.Capability().Wait()
 	if err != nil {
@@ -108,7 +108,7 @@ func (r *imapRetriever) GetMail(client config.ClientConfig) (mailer.MailResponse
 	}
 
 	uidSet := imap.UIDSet{imap.UIDRange{
-		Start: imap.UID(client.LastUIDNext),
+		Start: imap.UID(mailResp.LastUID - 10),
 		Stop:  imap.UID(mailResp.LastUID),
 	}}
 	if len(client.Filters) > 0 && capabilities.Has(imap.CapESearch) {
@@ -254,9 +254,14 @@ func processMessage(msg *imapclient.FetchMessageData, client config.ClientConfig
 
 func processBodyPart(part *mail.Part) (mailer.BodySegment, error) {
 	var bodySegment mailer.BodySegment
-	bodySegment.Content, _ = io.ReadAll(part.Body)
+	var err error
 
-	headerValue := part.Header.Get("Content-type")
+	bodySegment.Content, err = io.ReadAll(part.Body)
+	if err != nil {
+		return bodySegment, err
+	}
+
+	headerValue := part.Header.Get("Content-Type")
 	mimeType, charset, ok := parseContentTypeHeader(headerValue)
 	if !ok {
 		return bodySegment, fmt.Errorf("failed to parse 'Content-type' header with value %q", headerValue)
