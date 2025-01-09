@@ -50,13 +50,11 @@ func (r *Daemon) Start(ctx context.Context) error {
 				tctx, cancel := context.WithTimeout(ctx, r.cfg.MailPollTaskTimeout)
 				defer cancel()
 
-				for _, client := range r.cfg.Clients {
-					err := r.runner.Run(tctx, client)
-					if err != nil {
-						// TODO: handle client configuration ignoring
-						// in case of invalid settings specified
-						errCh <- fmt.Errorf("task execution failed: %w", err)
-					}
+				if err := r.runner.Run(tctx); err != nil {
+					// TODO: handle client configuration ignoring
+					// in case of invalid settings specified
+					r.logger.Error("task execution failed", slog.String("error", err.Error()))
+					errCh <- fmt.Errorf("task execution failed: %w", err)
 				}
 			},
 		})

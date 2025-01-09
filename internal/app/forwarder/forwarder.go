@@ -26,82 +26,71 @@ func NewTelegramForwarder(client *http.Client, cfg config.TelegramConfiguration,
 	}
 }
 
-func (t *telegramForwarder) Forward(ctx context.Context, config config.ContactPointConfiguration, messages []*mailer.Message) error {
+func (tf *telegramForwarder) Forward(ctx context.Context, cfg config.ContactPointConfiguration, messages []*mailer.Message) error {
 	for _, message := range messages {
-		msgContent, err := renderTemplate(message, config.Template)
+		content, err := renderTemplate(message, cfg.Template)
 		if err != nil {
-			return fmt.Errorf("failed to render message template: %w", err)
+			return fmt.Errorf("render message template: %w", err)
 		}
 
-		if err = t.sendMessage(ctx, config, bytes.NewBufferString(msgContent)); err != nil {
-			return fmt.Errorf("failed to send message: %w", err)
+		if err = tf.sendMessage(ctx, cfg, bytes.NewBufferString(content)); err != nil {
+			return fmt.Errorf("send message: %w", err)
 		}
 	}
 	return nil
 }
 
-func (t *telegramForwarder) sendMessage(ctx context.Context, config config.ContactPointConfiguration, msgBody *bytes.Buffer) error {
-	msgParseMode := tgParseModeMarkdownV2
-	if config.ParseMode != nil {
-		msgParseMode = *config.ParseMode
-	}
-
-	if msgBody.Len() <= tgMsgTextSizeLimit {
-		reqData := tgSendMsgRequest{
-			ChatID:              config.TGChatID,
-			ParseMode:           msgParseMode,
-			Text:                msgBody.String(),
-			DisableNotification: config.SilentMode,
-			ProtectContent:      config.DisableForwarding,
-		}
-		return t.makeRequest(ctx, tgAPISendMessageMethod, reqData)
+func (tf *telegramForwarder) sendMessage(ctx context.Context, cfg config.ContactPointConfiguration, body *bytes.Buffer) error {
+	parseMode := tgParseModeMarkdownV2
+	if cfg.ParseMode != nil {
+		parseMode = *cfg.ParseMode
 	}
 
 	// Due to Telegram's limit on message text size,
 	// we proceed to split and send message in 4096-byte sized chunks.
-	for msgBody.Len() > 0 {
-		msgChunk := msgBody.Next(tgMsgTextSizeLimit)
-		reqData := tgSendMsgRequest{
-			ChatID:              config.TGChatID,
-			ParseMode:           msgParseMode,
-			Text:                string(msgChunk),
-			DisableNotification: config.SilentMode,
-			ProtectContent:      config.DisableForwarding,
+	for body.Len() > 0 {
+		payload := body.Next(tgMsgTextSizeLimit)
+		req := tgSendMsgRequest{
+			ChatID:              cfg.TGChatID,
+			ParseMode:           parseMode,
+			Text:                string(payload),
+			DisableNotification: cfg.SilentMode,
+			ProtectContent:      cfg.DisableForwarding,
 		}
-		if err := t.makeRequest(ctx, tgAPISendMessageMethod, reqData); err != nil {
-			return err
+		if err := tf.makeRequest(ctx, tgAPISendMessageMethod, req); err != nil {
+			return fmt.Errorf("make request: %w", err)
 		}
 	}
 
 	return nil
 }
 
-func (t *telegramForwarder) makeRequest(ctx context.Context, method string, payload any) error {
-	reqPayloadBytes, err := json.Marshal(&payload)
+func (tf *telegramForwarder) makeRequest(ctx context.Context, method string, payload any) error {
+	b, err := json.Marshal(&payload)
 	if err != nil {
-		return fmt.Errorf("failed to marshal request body: %w", err)
+		return fmt.Errorf("encode json: %w", err)
 	}
 
 	req, err := http.NewRequestWithContext(
 		ctx,
 		http.MethodPost,
-		fmt.Sprintf(tgAPIURLTemplate, t.cfg.BotToken, method),
-		bytes.NewReader(reqPayloadBytes),
+		fmt.Sprintf(tgAPIURLTemplate, tf.cfg.BotToken, method),
+		bytes.NewReader(b),
 	)
 	if err != nil {
-		return err
+		return fmt.Errorf("build request: %w", err)
 	}
 
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := t.client.Do(req)
+	resp, err := tf.client.Do(req)
 	if err != nil {
-		return err
+		return fmt.Errorf("request: %w", err)
 	}
 
 	var respData tgResponse
 	if err = json.NewDecoder(resp.Body).Decode(&respData); err != nil {
-		return err
+		return fmt.Errorf("decode json: %w", err)
 	}
 
 	if !respData.Ok {
@@ -141,14 +130,12 @@ type tgResponse struct {
 	Code        int    `json:"error_code"`
 }
 
-const tgMsgTextSizeLimit = 4096
+const (
+	tgMsgTextSizeLimit     = 4096
+	tgAPIURLTemplate       = "https://api.telegram.org/bot%s/%s"
+	tgAPISendMessageMethod = "sendMessage"
 
-const tgAPIURLTemplate = "https://api.telegram.org/bot%s/%s"
-
-const tgAPISendMessageMethod = "sendMessage"
-
-const tgParseModeHTML = "HTML"
-
-const tgParseModeMarkdownV2 = "MarkdownV2"
-
-const tgParseModeMarkdown = "Markdown"
+	tgParseModeHTML       = "HTML"
+	tgParseModeMarkdownV2 = "MarkdownV2"
+	tgParseModeMarkdown   = "Markdown"
+)

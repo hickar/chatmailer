@@ -28,7 +28,6 @@ func (s *Scheduler) Schedule(settings schedulerSettings) error {
 //
 // Launches a time.Ticker that signals the execution of the callback function at regular intervals.
 // Returns an error only if invalid settings are provided (e.g., interval <= 0 or nil callback).
-// Uses a background context for execution.
 func (s *Scheduler) ScheduleWithCtx(ctx context.Context, settings schedulerSettings) error {
 	if settings.Interval <= 0 {
 		return errors.New("interval must be larger than 0")
@@ -43,10 +42,6 @@ func (s *Scheduler) ScheduleWithCtx(ctx context.Context, settings schedulerSetti
 	return nil
 }
 
-// Manages the internal execution loop of the Scheduler.
-//
-// Executed as a goroutine within ScheduleWithCtx.
-// Handles triggering the callback function based on Ticker signals, quit signals, and context cancellation.
 func (s *Scheduler) runSchedule(ctx context.Context) {
 	if s.settings.LaunchInitially {
 		s.settings.Callback()
@@ -67,7 +62,7 @@ func (s *Scheduler) runSchedule(ctx context.Context) {
 	}
 }
 
-// Stop gracefully terminates the Scheduler by closing the quit channel.
+// Stop gracefully terminates Scheduler.
 func (s *Scheduler) Stop() {
 	close(s.quit)
 }

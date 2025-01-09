@@ -71,7 +71,7 @@ func NewIMAPRetriever(dialer imapDialer) *imapRetriever {
 // GetMail with additional information and context for each error. It will greatly
 // improve debugging.GetMail.
 func (r *imapRetriever) GetMail(client config.ClientConfig) (mailer.MailResponse, error) {
-	var mailResp mailer.MailResponse
+	var mail mailer.MailResponse
 
 	c, err := r.dialer.DialTLS(client.Address, &imapclient.Options{
 		DebugWriter:           nil,
@@ -79,21 +79,21 @@ func (r *imapRetriever) GetMail(client config.ClientConfig) (mailer.MailResponse
 		WordDecoder:           &mime.WordDecoder{CharsetReader: charset.Reader},
 	})
 	if err != nil {
-		return mailResp, err
+		return mail, err
 	}
 
 	if err = c.Login(client.Login, client.Password).Wait(); err != nil {
-		return mailResp, err
+		return mail, err
 	}
 
 	mailbox, err := c.Select("inbox", &imap.SelectOptions{
 		ReadOnly: client.MarkAsSeen,
 	}).Wait()
 	if err != nil {
-		return mailResp, err
+		return mail, err
 	}
-	mailResp.LastUIDValidity = mailbox.UIDValidity
-	mailResp.LastUID = uint32(mailbox.UIDNext)
+	mail.LastUIDValidity = mailbox.UIDValidity
+	mail.LastUID = uint32(mailbox.UIDNext)
 
 	// if areNoNewMessages(mailbox, client) {
 	// 	return mailResp, nil
@@ -104,17 +104,17 @@ func (r *imapRetriever) GetMail(client config.ClientConfig) (mailer.MailResponse
 
 	capabilities, err := c.Capability().Wait()
 	if err != nil {
-		return mailResp, err
+		return mail, err
 	}
 
 	uidSet := imap.UIDSet{imap.UIDRange{
-		Start: imap.UID(mailResp.LastUID - 10),
-		Stop:  imap.UID(mailResp.LastUID),
+		Start: imap.UID(mail.LastUID - 10),
+		Stop:  imap.UID(mail.LastUID),
 	}}
 	if len(client.Filters) > 0 && capabilities.Has(imap.CapESearch) {
 		uidSet, err = getUIDSetBySearchCriteria(c, client)
 		if err != nil {
-			return mailResp, err
+			return mail, err
 		}
 	}
 
@@ -132,7 +132,7 @@ func (r *imapRetriever) GetMail(client config.ClientConfig) (mailer.MailResponse
 		var message *mailer.Message
 		message, err = processMessage(msg, client)
 		if err != nil {
-			return mailResp, err
+			return mail, err
 		}
 		// TODO: handle message filtering in case of remote IMAP server inability
 		// to filter messages based on sent search criteria
@@ -141,10 +141,10 @@ func (r *imapRetriever) GetMail(client config.ClientConfig) (mailer.MailResponse
 		// 	...
 		// }
 
-		mailResp.Messages = append(mailResp.Messages, message)
+		mail.Messages = append(mail.Messages, message)
 	}
 
-	return mailResp, err
+	return mail, err
 }
 
 func getUIDSetBySearchCriteria(c *imapclient.Client, client config.ClientConfig) (imap.UIDSet, error) {
@@ -273,7 +273,7 @@ func processBodyPart(part *mail.Part) (mailer.BodySegment, error) {
 	return bodySegment, nil
 }
 
-func processAttachment(part *mail.Part, header *mail.AttachmentHeader) (mailer.Attachment, error) {
+func processAttachment(_ *mail.Part, _ *mail.AttachmentHeader) (mailer.Attachment, error) {
 	// TODO: implement later
 	return mailer.Attachment{}, nil
 }

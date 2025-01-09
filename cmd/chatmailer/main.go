@@ -13,7 +13,6 @@ import (
 	"syscall"
 
 	"github.com/emersion/go-imap/v2/imapclient"
-
 	"github.com/hickar/chatmailer/internal/app/config"
 	"github.com/hickar/chatmailer/internal/app/daemon"
 	"github.com/hickar/chatmailer/internal/app/forwarder"
@@ -23,16 +22,16 @@ import (
 )
 
 var (
-	configFilepath = flag.String("config", "./config.yaml", "Filepath to configuration file. Default is '.config.yaml'")
-	envFilepath    = flag.String("env-file", "./.env", "Filepath to environment variables file. Default is '.env'")
+	configPath = flag.String("config", "./config.yaml", "Filepath to configuration file. Default is '.config.yaml'")
+	envPath    = flag.String("env-file", "./.env", "Filepath to environment variables file. Default is '.env'")
 )
 
 func main() {
 	flag.Parse()
 
-	cfg, err := config.LoadConfig(*configFilepath, *envFilepath)
+	cfg, err := config.LoadConfig(*configPath, *envPath)
 	if err != nil {
-		log.Fatalf(fmt.Sprintf("failed to load configuration: %s", err))
+		log.Fatalf("failed to load configuration: %v", err)
 	}
 
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
@@ -40,7 +39,8 @@ func main() {
 	}))
 
 	runner := mailer.NewRunner(
-		storage.NewInMemoryStorage(),
+		cfg,
+		storage.NewInMemoryStorage[string, config.ClientConfig](),
 		retriever.NewIMAPRetriever(retriever.ImapDialerFunc(imapclient.DialTLS)),
 		forwarder.NewTelegramForwarder(
 			&http.Client{},
