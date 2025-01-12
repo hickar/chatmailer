@@ -79,18 +79,18 @@ func (r *imapRetriever) GetMail(cfg config.ClientConfig) (mailer.MailResponse, e
 		WordDecoder:           &mime.WordDecoder{CharsetReader: charset.Reader},
 	})
 	if err != nil {
-		return mail, err
+		return mail, fmt.Errorf("dial TLS: %w", err)
 	}
 
 	if err = client.Login(cfg.Login, cfg.Password).Wait(); err != nil {
-		return mail, err
+		return mail, fmt.Errorf("login: %w", err)
 	}
 
 	mailbox, err := client.Select("inbox", &imap.SelectOptions{
 		ReadOnly: cfg.MarkAsSeen,
 	}).Wait()
 	if err != nil {
-		return mail, err
+		return mail, fmt.Errorf("select: %w", err)
 	}
 	mail.LastUIDValidity = mailbox.UIDValidity
 	mail.LastUID = uint32(mailbox.UIDNext)
@@ -104,7 +104,7 @@ func (r *imapRetriever) GetMail(cfg config.ClientConfig) (mailer.MailResponse, e
 
 	capabilities, err := client.Capability().Wait()
 	if err != nil {
-		return mail, err
+		return mail, fmt.Errorf("get capabilities: %w", err)
 	}
 
 	uidSet := imap.UIDSet{imap.UIDRange{
@@ -114,7 +114,7 @@ func (r *imapRetriever) GetMail(cfg config.ClientConfig) (mailer.MailResponse, e
 	if len(cfg.Filters) > 0 && capabilities.Has(imap.CapESearch) {
 		uidSet, err = getUIDSetBySearchCriteria(client, cfg)
 		if err != nil {
-			return mail, err
+			return mail, fmt.Errorf("get UID set by search criteria: %w", err)
 		}
 	}
 
@@ -132,7 +132,7 @@ func (r *imapRetriever) GetMail(cfg config.ClientConfig) (mailer.MailResponse, e
 		var message *mailer.Message
 		message, err = processMessage(msg, cfg)
 		if err != nil {
-			return mail, err
+			return mail, fmt.Errorf("process message: %w", err)
 		}
 		// TODO: handle message filtering in case of remote IMAP server inability
 		// to filter messages based on sent search criteria
@@ -161,7 +161,7 @@ func getUIDSetBySearchCriteria(c *imapclient.Client, client config.ClientConfig)
 		ReturnSave:  false,
 	}).Wait()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("search: %w", err)
 	}
 
 	uidSet := imap.UIDSetNum(searchCmd.AllUIDs()...)
@@ -201,7 +201,7 @@ func processMessage(msg *imapclient.FetchMessageData, client config.ClientConfig
 
 	mr, err := mail.CreateReader(bodySection.Literal)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("create reader: %w", err)
 	}
 	defer func() {
 		err = errors.Join(err, mr.Close())
@@ -258,7 +258,7 @@ func processBodyPart(part *mail.Part) (mailer.BodySegment, error) {
 
 	bodySegment.Content, err = io.ReadAll(part.Body)
 	if err != nil {
-		return bodySegment, err
+		return bodySegment, fmt.Errorf("read part: %w", err)
 	}
 
 	headerValue := part.Header.Get("Content-Type")
