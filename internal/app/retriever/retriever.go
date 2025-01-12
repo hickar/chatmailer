@@ -108,7 +108,7 @@ func (r *imapRetriever) GetMail(cfg config.ClientConfig) (mailer.MailResponse, e
 	}
 
 	uidSet := imap.UIDSet{imap.UIDRange{
-		Start: imap.UID(mail.LastUID - 10),
+		Start: imap.UID(cfg.LastUIDNext),
 		Stop:  imap.UID(mail.LastUID),
 	}}
 	if len(cfg.Filters) > 0 && capabilities.Has(imap.CapESearch) {

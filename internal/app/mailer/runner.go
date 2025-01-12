@@ -73,15 +73,15 @@ func (r *TaskRunner) Run(ctx context.Context) error {
 			return fmt.Errorf("retrieve mail: %w", err)
 		}
 
-		logger.Info(fmt.Sprintf("received %d new messages received", len(mail.Messages)))
-		if len(mail.Messages) == 0 {
-			return nil
-		}
-
 		// Update client's last read mail UIDs.
 		client.LastUIDNext = mail.LastUID
 		client.LastUIDValidity = mail.LastUIDValidity
 		r.clientStore.Set(client.Login, client)
+
+		logger.Info(fmt.Sprintf("received %d new messages received", len(mail.Messages)))
+		if len(mail.Messages) == 0 {
+			return nil
+		}
 
 		// Forward mail to each contact point specified for
 		// current client.
