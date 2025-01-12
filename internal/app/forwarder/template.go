@@ -33,7 +33,7 @@ const defaultMessageTemplateString = `
 {{ end }}
 {{- if .BCC }}*BCC*: {{ template "addresses" .BCC }}
 {{ end }}
-{{- if .Subject }}*Subject*: {{ .Subject }}
+{{- if .Subject }}*Subject*: {{ escapeMarkdown .Subject }}
 {{ end }}
 {{- if .Date }}*Date*: {{ .Date.Format "Jan 02 2006 15:04:05" }}
 {{- end }}`
