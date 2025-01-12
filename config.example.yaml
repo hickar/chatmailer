@@ -1,6 +1,8 @@
 mail_poll_interval: 60s
 mail_poll_task_timeout: 30s
 
+# Forwarders configuration contains list of notifier backends.
+# Currently only Telegram email notification backend is supported.
 forwarders:
   telegram:
     bot_token: "tg_bot_token"
@@ -17,6 +19,9 @@ clients:
     password: "your.password"
     include_attachments: false
     include_images: false
+    filters:
+      - "!SEEN && !JUNK"
+      - "FROM != 'some.suspicious@mail.com'"
     contact_points:
       - type: "telegram"
         tg_chat_id: your_chat_id

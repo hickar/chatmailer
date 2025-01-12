@@ -1,7 +1,6 @@
 package config
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"time"
@@ -58,7 +57,7 @@ func LoadConfig(cfgFilepath, envFilepath string) (Config, error) {
 
 	if _, err := os.Stat(envFilepath); err == nil {
 		if err = godotenv.Load(envFilepath); err != nil {
-			return cfg, fmt.Errorf("unable to load environment variables from file: %w", err)
+			return cfg, fmt.Errorf("load env: %w", err)
 		}
 	}
 
@@ -66,19 +65,12 @@ func LoadConfig(cfgFilepath, envFilepath string) (Config, error) {
 	//nolint:gosec
 	fileBytes, err := os.ReadFile(cfgFilepath)
 	if err != nil {
-		switch {
-		case errors.Is(err, os.ErrNotExist):
-			return cfg, fmt.Errorf("configuration file at this cfgFilepath doesn't exist: %w", err)
-		case errors.Is(err, os.ErrPermission):
-			return cfg, fmt.Errorf("permission denied for accessing configuration file: %w", err)
-		default:
-			return cfg, fmt.Errorf("unexpected error during reading configuration file: %w", err)
-		}
+		return cfg, fmt.Errorf("read file: %w", err)
 	}
 
 	envExpanded := os.ExpandEnv(string(fileBytes))
 	if err = yaml.Unmarshal([]byte(envExpanded), &cfg); err != nil {
-		return cfg, fmt.Errorf("unable to unmarshal configuration file: %w", err)
+		return cfg, fmt.Errorf("decode yaml: %w", err)
 	}
 
 	return cfg, nil

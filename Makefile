@@ -1,26 +1,30 @@
 .PHONY: up 
-up:
-	docker compose up --build
+up: ## Deploy application in Docker via docker-compose configuration.
+	docker compose up --build -d
 
 .PHONY: down
-down:
+down: ## Bring down current Docker deployment.
 	docker compose down
 
 .PHONY: run
-run:
+run: ## Compile and run application binary.
 	go run cmd/chatmailer
 
 .PHONY: build
-build:
-	CGO_ENABLED=0 go build cmd/chatmailer
+build: ## Compile application binary.
+	go build cmd/chatmailer
 
 .PHONY: test
-test:
+test: ## Compile and run application tests.
 	go test -v ./...
 
 .PHONY: format-lint format lint
-format-lint: format lint
-format:
+format-lint: format lint ## Run formatter and linter.
+format: ## Run formatter only.
 	gofumpt -l -w .
-lint:
-	golangci-lint run ./...
+lint: ## Run linter only.
+	golangci-lint run -c .golangci.yaml ./...
+
+.PHONY: help
+help: ## Display help information
+	@grep -E '^[a-zA-Z_-]+:.*## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'

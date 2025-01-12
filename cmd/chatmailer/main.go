@@ -31,7 +31,7 @@ func main() {
 
 	cfg, err := config.LoadConfig(*configPath, *envPath)
 	if err != nil {
-		log.Fatalf("failed to load configuration: %v", err)
+		log.Fatalf("load configuration: %v", err)
 	}
 
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
@@ -43,16 +43,16 @@ func main() {
 		storage.NewInMemoryStorage[string, config.ClientConfig](),
 		retriever.NewIMAPRetriever(retriever.ImapDialerFunc(imapclient.DialTLS)),
 		forwarder.NewTelegramForwarder(
-			&http.Client{},
+			http.DefaultClient,
 			cfg.Forwarders.Telegram,
 			logger.With(slog.String("module", "telegram_forwarder")),
 		),
 		logger.With(slog.String("module", "runner")),
 	)
 
-	remailer := daemon.NewDaemon(
+	chatmailer := daemon.NewDaemon(
 		cfg,
-		&daemon.Scheduler{},
+		daemon.NewScheduler(),
 		runner,
 		logger.With(slog.String("module", "remailer")),
 	)
@@ -60,7 +60,7 @@ func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGABRT, syscall.SIGQUIT, syscall.SIGKILL, syscall.SIGTERM)
 	defer cancel()
 
-	if err = remailer.Start(ctx); err != nil {
+	if err = chatmailer.Start(ctx); err != nil {
 		if !errors.Is(err, context.Canceled) {
 			logger.Error(fmt.Sprintf("Application exited with error: %s", err), slog.String("module", "main"))
 			cancel()
@@ -69,5 +69,5 @@ func main() {
 		}
 	}
 
-	cancel()
+	logger.Info("Application exited successfully")
 }

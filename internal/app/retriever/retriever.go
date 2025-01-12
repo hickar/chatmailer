@@ -70,10 +70,10 @@ func NewIMAPRetriever(dialer imapDialer) *imapRetriever {
 // I suppose we need to enhance errors from all child functions and handle them in
 // GetMail with additional information and context for each error. It will greatly
 // improve debugging.GetMail.
-func (r *imapRetriever) GetMail(client config.ClientConfig) (mailer.MailResponse, error) {
+func (r *imapRetriever) GetMail(cfg config.ClientConfig) (mailer.MailResponse, error) {
 	var mail mailer.MailResponse
 
-	c, err := r.dialer.DialTLS(client.Address, &imapclient.Options{
+	client, err := r.dialer.DialTLS(cfg.Address, &imapclient.Options{
 		DebugWriter:           nil,
 		UnilateralDataHandler: &imapclient.UnilateralDataHandler{},
 		WordDecoder:           &mime.WordDecoder{CharsetReader: charset.Reader},
@@ -82,12 +82,12 @@ func (r *imapRetriever) GetMail(client config.ClientConfig) (mailer.MailResponse
 		return mail, err
 	}
 
-	if err = c.Login(client.Login, client.Password).Wait(); err != nil {
+	if err = client.Login(cfg.Login, cfg.Password).Wait(); err != nil {
 		return mail, err
 	}
 
-	mailbox, err := c.Select("inbox", &imap.SelectOptions{
-		ReadOnly: client.MarkAsSeen,
+	mailbox, err := client.Select("inbox", &imap.SelectOptions{
+		ReadOnly: cfg.MarkAsSeen,
 	}).Wait()
 	if err != nil {
 		return mail, err
@@ -95,14 +95,14 @@ func (r *imapRetriever) GetMail(client config.ClientConfig) (mailer.MailResponse
 	mail.LastUIDValidity = mailbox.UIDValidity
 	mail.LastUID = uint32(mailbox.UIDNext)
 
-	// if areNoNewMessages(mailbox, client) {
-	// 	return mailResp, nil
-	// }
-	// if client.LastUIDNext == 0 {
-	// 	return mailResp, nil
-	// }
+	if areNoNewMessages(mailbox, cfg) {
+		return mail, nil
+	}
+	if cfg.LastUIDNext == 0 {
+		return mail, nil
+	}
 
-	capabilities, err := c.Capability().Wait()
+	capabilities, err := client.Capability().Wait()
 	if err != nil {
 		return mail, err
 	}
@@ -111,14 +111,14 @@ func (r *imapRetriever) GetMail(client config.ClientConfig) (mailer.MailResponse
 		Start: imap.UID(mail.LastUID - 10),
 		Stop:  imap.UID(mail.LastUID),
 	}}
-	if len(client.Filters) > 0 && capabilities.Has(imap.CapESearch) {
-		uidSet, err = getUIDSetBySearchCriteria(c, client)
+	if len(cfg.Filters) > 0 && capabilities.Has(imap.CapESearch) {
+		uidSet, err = getUIDSetBySearchCriteria(client, cfg)
 		if err != nil {
 			return mail, err
 		}
 	}
 
-	fetchCmd := c.Fetch(uidSet, fetchOptions)
+	fetchCmd := client.Fetch(uidSet, fetchOptions)
 	defer func() {
 		err = errors.Join(err, fetchCmd.Close())
 	}()
@@ -130,7 +130,7 @@ func (r *imapRetriever) GetMail(client config.ClientConfig) (mailer.MailResponse
 		}
 
 		var message *mailer.Message
-		message, err = processMessage(msg, client)
+		message, err = processMessage(msg, cfg)
 		if err != nil {
 			return mail, err
 		}
@@ -150,7 +150,7 @@ func (r *imapRetriever) GetMail(client config.ClientConfig) (mailer.MailResponse
 func getUIDSetBySearchCriteria(c *imapclient.Client, client config.ClientConfig) (imap.UIDSet, error) {
 	searchCriteria, err := buildSearchCriteria(client.Filters, client.LastUIDNext)
 	if err != nil {
-		return nil, fmt.Errorf("search criteria parsing failed: %w", err)
+		return nil, fmt.Errorf("build search criteria: %w", err)
 	}
 
 	searchCmd, err := c.Search(searchCriteria, &imap.SearchOptions{
@@ -224,14 +224,14 @@ func processMessage(msg *imapclient.FetchMessageData, client config.ClientConfig
 			break
 		}
 		if err != nil {
-			return nil, fmt.Errorf("failed to read message part: %w", err)
+			return nil, fmt.Errorf("read message part: %w", err)
 		}
 
 		switch header := part.Header.(type) {
 		case *mail.InlineHeader:
 			bodyPart, err := processBodyPart(part)
 			if err != nil {
-				return nil, fmt.Errorf("body segment parsing failed: %w", err)
+				return nil, fmt.Errorf("body segment parsing: %w", err)
 			}
 
 			message.BodyParts = append(message.BodyParts, bodyPart)
@@ -242,7 +242,7 @@ func processMessage(msg *imapclient.FetchMessageData, client config.ClientConfig
 
 			attachment, err := processAttachment(part, header)
 			if err != nil {
-				return nil, fmt.Errorf("attachment parsing failed: %w", err)
+				return nil, fmt.Errorf("attachment parsing: %w", err)
 			}
 
 			message.Attachments = append(message.Attachments, attachment)
@@ -264,7 +264,7 @@ func processBodyPart(part *mail.Part) (mailer.BodySegment, error) {
 	headerValue := part.Header.Get("Content-Type")
 	mimeType, charset, ok := parseContentTypeHeader(headerValue)
 	if !ok {
-		return bodySegment, fmt.Errorf("failed to parse 'Content-type' header with value %q", headerValue)
+		return bodySegment, fmt.Errorf("parse 'Content-type' header with value %q", headerValue)
 	}
 
 	bodySegment.MIMEType = mimeType
@@ -323,7 +323,7 @@ func buildSearchCriteria(filters []string, lastClientUIDNext uint32) (*imap.Sear
 
 		newCriteria, err := ParseFilter(filterExpr)
 		if err != nil {
-			return nil, fmt.Errorf("failed to parse filter expression %q: %w", filterExpr, err)
+			return nil, fmt.Errorf("parse filter expression %q: %w", filterExpr, err)
 		}
 
 		if searchCriteria == nil {

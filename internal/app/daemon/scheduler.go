@@ -20,6 +20,10 @@ type schedulerSettings struct {
 	LaunchInitially bool          // Flag indicating whether to execute the callback immediately upon scheduling.
 }
 
+func NewScheduler() *Scheduler {
+	return &Scheduler{}
+}
+
 func (s *Scheduler) Schedule(settings schedulerSettings) error {
 	return s.ScheduleWithCtx(context.Background(), settings)
 }

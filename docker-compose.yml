@@ -3,11 +3,13 @@ version: "3.9"
 name: chatmailer
 
 services:
-  app:
+  chatmailer:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: build/Dockerfile
+    volumes:
+      - config.yaml:/app/config.yaml
+    env_file:
+      - .env
     ports:
       - "8080:8081"
-    volumes:
-      - ./:/app
