@@ -49,6 +49,7 @@ var templateFuncs = template.FuncMap{
 	"contains":       strings.Contains,
 	"trim":           strings.Trim,
 	"trimSpace":      strings.TrimSpace,
+	"bytestring":     bytesToString,
 }
 
 var defaultTemplate = template.Must(template.New("").Funcs(templateFuncs).Parse(defaultMessageTemplateString))
@@ -57,17 +58,23 @@ func renderTemplate(message *mailer.Message, templateStr string) (string, error)
 	var buf bytes.Buffer
 
 	if templateStr == "" {
-		err := defaultTemplate.Execute(&buf, message)
-		return buf.String(), err
+		if err := defaultTemplate.Execute(&buf, message); err != nil {
+			return "", fmt.Errorf("default template rendering: %w", err)
+		}
+
+		return buf.String(), nil
 	}
 
 	tmpl, err := template.New("custom").Funcs(templateFuncs).Parse(templateStr)
 	if err != nil {
-		return "", fmt.Errorf("custom template creation error: %w", err)
+		return "", fmt.Errorf("custom template parsing: %w", err)
 	}
 
-	err = tmpl.Execute(&buf, message)
-	return buf.String(), err
+	if err = tmpl.Execute(&buf, message); err != nil {
+		return "", fmt.Errorf("custom template rendering: %w", err)
+	}
+
+	return buf.String(), nil
 }
 
 func escapeMarkdown(s string) string {
@@ -76,6 +83,10 @@ func escapeMarkdown(s string) string {
 
 func escapeHTML(s string) string {
 	return html.EscapeString(s)
+}
+
+func bytesToString(b []byte) string {
+	return string(b)
 }
 
 func escapeCharacters(s string, charMap map[rune]struct{}) string {

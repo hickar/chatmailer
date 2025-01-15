@@ -5,7 +5,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/joho/godotenv"
 	"gopkg.in/yaml.v3"
 )
 
@@ -52,24 +51,17 @@ type ContactPointConfiguration struct {
 	ParseMode         *string `yaml:"parse_mode,omitempty"` // Mode for parsing entities in the message text. Possible values: 'HTML', 'MarkdownV2', 'Markdown'.
 }
 
-func LoadConfig(cfgFilepath, envFilepath string) (Config, error) {
+func NewFromFile(configPath string) (Config, error) {
 	var cfg Config
-
-	if _, err := os.Stat(envFilepath); err == nil {
-		if err = godotenv.Load(envFilepath); err != nil {
-			return cfg, fmt.Errorf("load env: %w", err)
-		}
-	}
 
 	//TODO: Need to consider secure alternatives in production.
 	//nolint:gosec
-	fileBytes, err := os.ReadFile(cfgFilepath)
+	file, err := os.Open(configPath)
 	if err != nil {
-		return cfg, fmt.Errorf("read file: %w", err)
+		return cfg, fmt.Errorf("open file: %w", err)
 	}
 
-	envExpanded := os.ExpandEnv(string(fileBytes))
-	if err = yaml.Unmarshal([]byte(envExpanded), &cfg); err != nil {
+	if err = yaml.NewDecoder(file).Decode(&cfg); err != nil {
 		return cfg, fmt.Errorf("decode yaml: %w", err)
 	}
 

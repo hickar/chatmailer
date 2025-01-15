@@ -1,4 +1,5 @@
-mail_poll_interval: 60s
+# Interval to check new mail upon.
+mail_poll_interval: 30s
 mail_poll_task_timeout: 30s
 
 # Forwarders configuration contains list of notifier backends.
@@ -17,8 +18,11 @@ clients:
     address: "your.imap.server.com:993"
     login: "your.login@mail.com"
     password: "your.password"
+    # Not supported yet.
     include_attachments: false
+    # Not supported yet.
     include_images: false
+    # Custom filters could be specified per each client.
     filters:
       - "!SEEN && !JUNK"
       - "FROM != 'some.suspicious@mail.com'"
@@ -33,6 +37,7 @@ clients:
         parse_mode: "MarkdownV2" 
         # Custom message template (Optional). If not specified, default one is used.
         # For templating standard Go template engine is used.
+        # Refer to: https://pkg.go.dev/text/template
         template: |
           {{- define "addresses" -}}
             {{- range $idx, $address := . -}}
@@ -59,4 +64,12 @@ clients:
           {{- if .Subject }}*Subject*: {{ escapeMarkdown .Subject }}
           {{ end }}
           {{- if .Date }}*Date*: {{ .Date.Format "Jan 02 2006 15:04:05" }}
-          {{- end }}`
+          {{- end }}
+
+          {{ range $part := .BodyParts }}
+            {{- if eq $part.MIMEType "text/plain" }}
+              {{- bytestring $part.Content | escapeMarkdown }}
+            {{- else -}}
+              MESSAGE CONTENT COULD NOT BE REPRESENTED
+            {{ end }}
+          {{ end }}

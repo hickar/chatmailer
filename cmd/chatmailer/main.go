@@ -21,15 +21,11 @@ import (
 	"github.com/hickar/chatmailer/internal/app/storage"
 )
 
-var (
-	configPath = flag.String("config", "./config.yaml", "Filepath to configuration file. Default is '.config.yaml'")
-	envPath    = flag.String("env-file", "./.env", "Filepath to environment variables file. Default is '.env'")
-)
-
 func main() {
+	configPath := flag.String("config", "./config.yaml", "Filepath to configuration file. Default is '.config.yaml'")
 	flag.Parse()
 
-	cfg, err := config.LoadConfig(*configPath, *envPath)
+	cfg, err := config.NewFromFile(*configPath)
 	if err != nil {
 		log.Fatalf("load configuration: %v", err)
 	}

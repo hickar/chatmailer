@@ -1,6 +1,8 @@
 .go-version
 .gitignore
-*.yaml
-.*env
+config*yaml
+docker-compose.yaml
+.env
 Makefile
 README.md
+bin/

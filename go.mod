@@ -7,7 +7,6 @@ toolchain go1.23.2
 require (
 	github.com/emersion/go-imap/v2 v2.0.0-beta.4
 	github.com/emersion/go-message v0.18.1
-	github.com/joho/godotenv v1.5.1
 	github.com/stretchr/testify v1.10.0
 	gopkg.in/yaml.v3 v3.0.1
 )
