@@ -1,10 +1,12 @@
+COMPOSE_FILE ?= docker-compose.yaml
+
 .PHONY: up 
 up: ## Deploy application in Docker via docker-compose configuration.
-	docker compose up --build -d
+	docker compose -f $(COMPOSE_FILE) up --build -d
 
 .PHONY: down
 down: ## Bring down current Docker deployment.
-	docker compose down
+	docker compose -f $(COMPOSE_FILE) down
 
 .PHONY: run
 run: ## Compile and run application binary.

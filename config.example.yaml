@@ -27,10 +27,36 @@ clients:
         tg_chat_id: your_chat_id
         silent_mode: true # Sends messages in silent mode (Optional, defaults to 'false').
         disable_forwarding: true # Forbid to forward messages sent by bot (Optional, defaults to 'false').
-        # Custom message template (Optional). If not specified, default one is used.
-        # For templating standard Go template engine is used.
-        template: "custom template"
         # Mode for parsing entities in the message text (Optional).
         # Possible values: '', 'HTML', 'MarkdownV2', 'Markdown'. 
         # Defaults to 'MarkdownV2' 
         parse_mode: "MarkdownV2" 
+        # Custom message template (Optional). If not specified, default one is used.
+        # For templating standard Go template engine is used.
+        template: |
+          {{- define "addresses" -}}
+            {{- range $idx, $address := . -}}
+              {{ $escapedAddress := escapeMarkdown $address.Address }}
+
+              {{- if ne $idx 0 -}}
+                {{- printf ", " -}}
+              {{- end -}}
+
+              {{- printf "[%s](mailto://%s)" $escapedAddress $address.Address -}}
+            {{- end -}}
+          {{- end -}}
+
+          {{- if .From }}*From*: {{ template "addresses" .From }}
+          {{ end }}
+          {{- if .To }}*To*: {{ template "addresses" .To }}
+          {{ end }}
+          {{- if .ReplyTo }}*Reply To*: {{ template "addresses" .ReplyTo }}
+          {{ end }}
+          {{- if .CC }}*CC*: {{ template "addresses" .CC }}
+          {{ end }}
+          {{- if .BCC }}*BCC*: {{ template "addresses" .BCC }}
+          {{ end }}
+          {{- if .Subject }}*Subject*: {{ escapeMarkdown .Subject }}
+          {{ end }}
+          {{- if .Date }}*Date*: {{ .Date.Format "Jan 02 2006 15:04:05" }}
+          {{- end }}`

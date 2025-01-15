@@ -1,0 +1,6 @@
+.go-version
+.gitignore
+*.yaml
+.*env
+Makefile
+README.md

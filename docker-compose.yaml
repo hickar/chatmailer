@@ -1,14 +1,14 @@
-version: "3.9"
-
 name: chatmailer
 
 services:
   chatmailer:
+    container_name: chatmailer
     build:
       context: .
       dockerfile: build/Dockerfile
     volumes:
-      - config.yaml:/app/config.yaml
+      - ./config.yaml:/etc/chatmailer/config.yaml
+    command: "-config /etc/chatmailer/config.yaml"
     env_file:
       - .env
     ports:
