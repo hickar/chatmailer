@@ -9,10 +9,9 @@ import (
 	"github.com/hickar/chatmailer/internal/app/config"
 )
 
-type KVStore[K comparable, V any] interface {
-	Get(key string) (V, bool)
-	Set(key string, value V)
-	Remove(key K) bool
+type ClientStore interface {
+	Get(id string) (config.ClientConfig, bool)
+	Set(id string, client config.ClientConfig)
 }
 
 type Forwarder interface {
@@ -25,7 +24,7 @@ type MailRetriever interface {
 
 type TaskRunner struct {
 	cfg           config.Config
-	clientStore   KVStore[string, config.ClientConfig]
+	clientStore   ClientStore
 	mailRetriever MailRetriever
 	forwarder     Forwarder
 	logger        *slog.Logger
@@ -33,14 +32,14 @@ type TaskRunner struct {
 
 func NewRunner(
 	cfg config.Config,
-	clientStorage KVStore[string, config.ClientConfig],
+	clientStore ClientStore,
 	mailRetriever MailRetriever,
 	forwarder Forwarder,
 	logger *slog.Logger,
 ) TaskRunner {
 	return TaskRunner{
 		cfg:           cfg,
-		clientStore:   clientStorage,
+		clientStore:   clientStore,
 		mailRetriever: mailRetriever,
 		forwarder:     forwarder,
 		logger:        logger,

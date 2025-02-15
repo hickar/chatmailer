@@ -18,7 +18,7 @@ import (
 	"github.com/hickar/chatmailer/internal/app/forwarder"
 	"github.com/hickar/chatmailer/internal/app/mailer"
 	"github.com/hickar/chatmailer/internal/app/retriever"
-	"github.com/hickar/chatmailer/internal/app/storage"
+	"github.com/hickar/chatmailer/internal/pkg/kvstore"
 )
 
 func main() {
@@ -36,7 +36,7 @@ func main() {
 
 	runner := mailer.NewRunner(
 		cfg,
-		storage.NewInMemoryStorage[string, config.ClientConfig](),
+		kvstore.New[string, config.ClientConfig](),
 		retriever.NewIMAPRetriever(retriever.ImapDialerFunc(imapclient.DialTLS)),
 		forwarder.NewTelegramForwarder(
 			http.DefaultClient,

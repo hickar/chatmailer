@@ -12,6 +12,16 @@ import (
 	"github.com/hickar/chatmailer/internal/app/mailer"
 )
 
+const (
+	tgMsgTextSizeLimit     = 4096
+	tgAPIURLTemplate       = "https://api.telegram.org/bot%s/%s"
+	tgAPISendMessageMethod = "sendMessage"
+
+	tgParseModeHTML       = "HTML"
+	tgParseModeMarkdownV2 = "MarkdownV2"
+	tgParseModeMarkdown   = "Markdown"
+)
+
 type telegramForwarder struct {
 	client *http.Client
 	cfg    config.TelegramConfiguration
@@ -129,13 +139,3 @@ type tgResponse struct {
 	Description string `json:"description"`
 	Code        int    `json:"error_code"`
 }
-
-const (
-	tgMsgTextSizeLimit     = 4096
-	tgAPIURLTemplate       = "https://api.telegram.org/bot%s/%s"
-	tgAPISendMessageMethod = "sendMessage"
-
-	tgParseModeHTML       = "HTML"
-	tgParseModeMarkdownV2 = "MarkdownV2"
-	tgParseModeMarkdown   = "Markdown"
-)
