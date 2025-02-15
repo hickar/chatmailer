@@ -1,12 +1,10 @@
 module github.com/hickar/chatmailer
 
-go 1.23
-
-toolchain go1.23.2
+go 1.24
 
 require (
 	github.com/emersion/go-imap/v2 v2.0.0-beta.4
-	github.com/emersion/go-message v0.18.1
+	github.com/emersion/go-message v0.18.2
 	github.com/stretchr/testify v1.10.0
 	gopkg.in/yaml.v3 v3.0.1
 )

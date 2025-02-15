@@ -1,4 +1,4 @@
-FROM golang:1.23-alpine AS builder
+FROM golang:1.24-alpine AS builder
 
 WORKDIR /usr/local/src/chatmailer
 
@@ -9,7 +9,7 @@ COPY . .
 RUN go build -o ./chatmailer -ldflags="-s -w" ./cmd/chatmailer/
 
 
-FROM golang:1.23-alpine AS runner
+FROM golang:1.24-alpine AS runner
 
 WORKDIR /usr/local/src/chatmailer
 
