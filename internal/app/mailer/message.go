@@ -23,6 +23,7 @@ type BodySegment struct {
 	MIMEType       string
 	MIMETypeParams map[string]string
 	Body           io.Reader
+	Size           int64
 }
 
 type Attachment struct {
@@ -31,7 +32,6 @@ type Attachment struct {
 	CreationDate     time.Time
 	ModificationDate time.Time
 	ReadDate         time.Time
-	Size             int64
 }
 
 type MailResponse struct {

@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"mime"
-	"strconv"
 	"strings"
 	"time"
 
@@ -293,25 +292,6 @@ func parseAttachment(part *mail.Part, header *mail.AttachmentHeader) (mailer.Att
 		}
 	}
 
-	if v, ok := params["size"]; ok {
-		attachment.Size, err = strconv.ParseInt(v, 10, 64)
-		if err != nil {
-			return attachment, fmt.Errorf("parse 'size': %w", err)
-		}
-	}
-
-	// If attachment size is still unknown,
-	// wrap it within bytes.Buffer and determine it's size by reading it.
-	if attachment.Size == 0 {
-		var buf bytes.Buffer
-		attachment.Size, err = buf.ReadFrom(attachment.Body)
-		if err != nil {
-			return attachment, fmt.Errorf("read from: %w", err)
-		}
-
-		attachment.Body = &buf
-	}
-
 	attachment.Filename, err = header.Filename()
 	if err != nil {
 		return attachment, fmt.Errorf("get filename: %w", err)
@@ -322,14 +302,19 @@ func parseAttachment(part *mail.Part, header *mail.AttachmentHeader) (mailer.Att
 
 func parseBodyPart(part *mail.Part, header message.Header) (mailer.BodySegment, error) {
 	var segment mailer.BodySegment
+	var buf bytes.Buffer
 	var err error
+
+	segment.Size, err = buf.ReadFrom(part.Body)
+	if err != nil {
+		return segment, fmt.Errorf("read from: %w", err)
+	}
+	segment.Body = &buf
 
 	segment.MIMEType, segment.MIMETypeParams, err = header.ContentType()
 	if err != nil {
 		return segment, fmt.Errorf("get 'Content-Type': %w", err)
 	}
-
-	segment.Body = part.Body
 
 	return segment, nil
 }
