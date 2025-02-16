@@ -6,20 +6,24 @@ import (
 	"fmt"
 	"io"
 	"mime"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/hickar/chatmailer/internal/app/config"
 	"github.com/hickar/chatmailer/internal/app/mailer"
 
 	"github.com/emersion/go-imap/v2"
 	"github.com/emersion/go-imap/v2/imapclient"
+	"github.com/emersion/go-message"
 	"github.com/emersion/go-message/charset"
 	"github.com/emersion/go-message/mail"
 )
 
-type imapDialer interface {
+type ImapDialer interface {
 	DialTLS(address string, options *imapclient.Options) (*imapclient.Client, error)
 }
+
 type ImapDialerFunc func(string, *imapclient.Options) (*imapclient.Client, error)
 
 func (f ImapDialerFunc) DialTLS(address string, options *imapclient.Options) (*imapclient.Client, error) {
@@ -27,10 +31,10 @@ func (f ImapDialerFunc) DialTLS(address string, options *imapclient.Options) (*i
 }
 
 type imapRetriever struct {
-	dialer imapDialer
+	dialer ImapDialer
 }
 
-func NewIMAPRetriever(dialer imapDialer) *imapRetriever {
+func NewIMAPRetriever(dialer ImapDialer) *imapRetriever {
 	return &imapRetriever{dialer: dialer}
 }
 
@@ -72,6 +76,7 @@ func NewIMAPRetriever(dialer imapDialer) *imapRetriever {
 // GetMail with additional information and context for each error. It will greatly
 // improve debugging.GetMail.
 func (r *imapRetriever) GetMail(cfg config.ClientConfig) (mailer.MailResponse, error) {
+	// TODO: pass context.Context and handle cancellation with it.
 	var mail mailer.MailResponse
 
 	client, err := r.dialer.DialTLS(cfg.Address, &imapclient.Options{
@@ -230,7 +235,7 @@ func parseMessage(msg *imapclient.FetchMessageData, client config.ClientConfig) 
 
 		switch header := part.Header.(type) {
 		case *mail.InlineHeader:
-			bodyPart, err := parseBodyPart(part)
+			bodyPart, err := parseBodyPart(part, header.Header)
 			if err != nil {
 				return nil, fmt.Errorf("body segment parsing: %w", err)
 			}
@@ -246,7 +251,7 @@ func parseMessage(msg *imapclient.FetchMessageData, client config.ClientConfig) 
 				return nil, fmt.Errorf("attachment parsing: %w", err)
 			}
 
-			if attachment.Length > int64(client.MaximumAttachmentsSize) {
+			if attachment.Size > int64(client.MaximumAttachmentsSize) {
 				break
 			}
 
@@ -257,63 +262,76 @@ func parseMessage(msg *imapclient.FetchMessageData, client config.ClientConfig) 
 	return message, nil
 }
 
-func parseBodyPart(part *mail.Part) (mailer.BodySegment, error) {
-	var segment mailer.BodySegment
-
-	segment.Body = part.Body
-
-	headerValue := part.Header.Get("Content-Type")
-	mimeType, charset, ok := parseContentTypeHeader(headerValue)
-	if !ok {
-		return segment, fmt.Errorf("parse 'Content-type' header with value %q", headerValue)
-	}
-
-	segment.MIMEType = mimeType
-	segment.Charset = charset
-
-	return segment, nil
-}
-
 func parseAttachment(part *mail.Part, header *mail.AttachmentHeader) (mailer.Attachment, error) {
 	var attachment mailer.Attachment
 	var err error
+
+	attachment.BodySegment, err = parseBodyPart(part, header.Header)
+	if err != nil {
+		return attachment, fmt.Errorf("parse body part: %w", err)
+	}
+
+	params := attachment.MIMETypeParams
+	if v, ok := params["creation-date"]; ok {
+		attachment.CreationDate, err = time.Parse(time.RFC822, v)
+		if err != nil {
+			return attachment, fmt.Errorf("parse 'creation-date': %w", err)
+		}
+	}
+
+	if v, ok := params["modification-date"]; ok {
+		attachment.ModificationDate, err = time.Parse(time.RFC822, v)
+		if err != nil {
+			return attachment, fmt.Errorf("parse 'modification-date': %w", err)
+		}
+	}
+
+	if v, ok := params["read-date"]; ok {
+		attachment.ReadDate, err = time.Parse(time.RFC822, v)
+		if err != nil {
+			return attachment, fmt.Errorf("parse 'read-date': %w", err)
+		}
+	}
+
+	if v, ok := params["size"]; ok {
+		attachment.Size, err = strconv.ParseInt(v, 10, 64)
+		if err != nil {
+			return attachment, fmt.Errorf("parse 'size': %w", err)
+		}
+	}
+
+	// If attachment size is still unknown,
+	// wrap it within bytes.Buffer and determine it's size by reading it.
+	if attachment.Size == 0 {
+		var buf bytes.Buffer
+		attachment.Size, err = buf.ReadFrom(attachment.Body)
+		if err != nil {
+			return attachment, fmt.Errorf("read from: %w", err)
+		}
+
+		attachment.Body = &buf
+	}
 
 	attachment.Filename, err = header.Filename()
 	if err != nil {
 		return attachment, fmt.Errorf("get filename: %w", err)
 	}
 
-	attachment.Length, err = readerLength(part.Body)
-	if err != nil {
-		return attachment, fmt.Errorf("get length: %w", err)
-	}
-
-	headerValue := part.Header.Get("Content-Type")
-	mimeType, _, ok := parseContentTypeHeader(headerValue)
-	if !ok {
-		return attachment, fmt.Errorf("parse 'Content-type' header with value %q", headerValue)
-	}
-
-	attachment.MIMEType = mimeType
-	attachment.Body = part.Body
-
 	return attachment, nil
 }
 
-func parseContentTypeHeader(header string) (string, string, bool) {
-	var mimeType, charset string
+func parseBodyPart(part *mail.Part, header message.Header) (mailer.BodySegment, error) {
+	var segment mailer.BodySegment
+	var err error
 
-	segs := strings.Split(header, ";")
-	switch len(segs) {
-	case 0:
-		return "", "", false
-	case 1:
-		mimeType = segs[0]
-	case 2:
-		mimeType, charset = segs[0], segs[1]
+	segment.MIMEType, segment.MIMETypeParams, err = header.ContentType()
+	if err != nil {
+		return segment, fmt.Errorf("get 'Content-Type': %w", err)
 	}
 
-	return mimeType, charset, true
+	segment.Body = part.Body
+
+	return segment, nil
 }
 
 func parseAddress(header mail.Header, addressListName string) []mailer.Address {
@@ -336,7 +354,7 @@ func areNoNewMessages(mailbox *imap.SelectData, client config.ClientConfig) bool
 }
 
 func buildSearchCriteria(filters []string, lastClientUIDNext uint32) (*imap.SearchCriteria, error) {
-	var searchCriteria *imap.SearchCriteria
+	var criteria *imap.SearchCriteria
 
 	for _, filterExpr := range filters {
 		if strings.TrimSpace(filterExpr) == "" {
@@ -348,22 +366,22 @@ func buildSearchCriteria(filters []string, lastClientUIDNext uint32) (*imap.Sear
 			return nil, fmt.Errorf("parse filter expression %q: %w", filterExpr, err)
 		}
 
-		if searchCriteria == nil {
-			searchCriteria = newCriteria
+		if criteria == nil {
+			criteria = newCriteria
 			continue
 		}
 
-		searchCriteria.And(newCriteria)
+		criteria.And(newCriteria)
 	}
-	if searchCriteria != nil {
-		searchCriteria.And(&imap.SearchCriteria{
+	if criteria != nil {
+		criteria.And(&imap.SearchCriteria{
 			UID: []imap.UIDSet{{imap.UIDRange{
 				Start: imap.UID(lastClientUIDNext),
 			}}},
 		})
 	}
 
-	return searchCriteria, nil
+	return criteria, nil
 }
 
 var fetchOptions = &imap.FetchOptions{
@@ -372,7 +390,7 @@ var fetchOptions = &imap.FetchOptions{
 	InternalDate: true,
 	RFC822Size:   true,
 	UID:          true,
-	BodySection:  []*imap.FetchItemBodySection{{}},
+	BodySection:  []*imap.FetchItemBodySection{{Peek: true}},
 	ModSeq:       true,
 }
 

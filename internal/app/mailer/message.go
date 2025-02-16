@@ -20,16 +20,18 @@ type Message struct {
 }
 
 type BodySegment struct {
-	MIMEType string
-	Charset  string
-	Body     io.Reader
+	MIMEType       string
+	MIMETypeParams map[string]string
+	Body           io.Reader
 }
 
 type Attachment struct {
-	Filename string
-	MIMEType string
-	Body     io.Reader
-	Length   int64
+	BodySegment
+	Filename         string
+	CreationDate     time.Time
+	ModificationDate time.Time
+	ReadDate         time.Time
+	Size             int64
 }
 
 type MailResponse struct {
