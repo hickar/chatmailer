@@ -1,6 +1,6 @@
 # Interval to check new mail upon.
-mail_poll_interval: 30s
-mail_poll_task_timeout: 30s
+mail_poll_interval: "30s"
+mail_poll_task_timeout: "30s"
 
 # Forwarders configuration contains list of notifier backends.
 # Currently only Telegram email notification backend is supported.
@@ -9,9 +9,8 @@ forwarders:
     bot_token: "tg_bot_token"
     web_app_url: "your_tg_web_app_url"
 
-# 'slog' standard library integer values are used for log levels.
-# -4 - DEBUG, 0 - INFO, 4 - WARN, 8 - ERROR.
-log_level: 0
+# Possible values: 'DEBUG', 'INFO', 'WARN', 'ERROR'.
+log_level: "INFO"
 
 clients:
   - proto: "imap"
@@ -20,6 +19,8 @@ clients:
     password: "your.password"
     # Not supported yet.
     include_attachments: false
+    # Maximum attachments size to process.
+    maximum_attachment_size: "50M"
     # Not supported yet.
     include_images: false
     # Custom filters could be specified per each client.
@@ -28,7 +29,7 @@ clients:
       - "FROM != 'some.suspicious@mail.com'"
     contact_points:
       - type: "telegram"
-        tg_chat_id: your_chat_id
+        tg_chat_id: "your_chat_id"
         silent_mode: true # Sends messages in silent mode (Optional, defaults to 'false').
         disable_forwarding: true # Forbid to forward messages sent by bot (Optional, defaults to 'false').
         # Mode for parsing entities in the message text (Optional).
@@ -68,7 +69,7 @@ clients:
 
           {{ range $part := .BodyParts }}
             {{- if eq $part.MIMEType "text/plain" }}
-              {{- bytestring $part.Content | escapeMarkdown }}
+              {{- bytestring $part.Body | escapeMarkdown }}
             {{- else -}}
               MESSAGE CONTENT COULD NOT BE REPRESENTED
             {{ end }}

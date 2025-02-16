@@ -47,6 +47,7 @@ func (tf *telegramForwarder) Forward(ctx context.Context, cfg config.ContactPoin
 			return fmt.Errorf("send message: %w", err)
 		}
 	}
+
 	return nil
 }
 

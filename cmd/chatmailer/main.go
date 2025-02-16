@@ -12,13 +12,14 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/emersion/go-imap/v2/imapclient"
 	"github.com/hickar/chatmailer/internal/app/config"
 	"github.com/hickar/chatmailer/internal/app/daemon"
 	"github.com/hickar/chatmailer/internal/app/forwarder"
 	"github.com/hickar/chatmailer/internal/app/mailer"
 	"github.com/hickar/chatmailer/internal/app/retriever"
 	"github.com/hickar/chatmailer/internal/pkg/kvstore"
+
+	"github.com/emersion/go-imap/v2/imapclient"
 )
 
 func main() {
@@ -31,7 +32,7 @@ func main() {
 	}
 
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
-		Level: slog.Level(cfg.LogLevel),
+		Level: cfg.LogLevel,
 	}))
 
 	runner := mailer.NewRunner(

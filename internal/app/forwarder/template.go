@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"html"
+	"io"
 	"strings"
 	"text/template"
 
@@ -85,8 +86,21 @@ func escapeHTML(s string) string {
 	return html.EscapeString(s)
 }
 
-func bytesToString(b []byte) string {
-	return string(b)
+func bytesToString(payload any) string {
+	switch v := payload.(type) {
+	case []byte:
+		return string(v)
+
+	case io.Reader:
+		b, err := io.ReadAll(v)
+		if err != nil {
+			break
+		}
+
+		return string(b)
+	}
+
+	return ""
 }
 
 func escapeCharacters(s string, charMap map[rune]struct{}) string {

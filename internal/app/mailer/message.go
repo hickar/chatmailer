@@ -1,6 +1,9 @@
 package mailer
 
-import "time"
+import (
+	"io"
+	"time"
+)
 
 type Message struct {
 	BodyParts   []BodySegment
@@ -18,14 +21,15 @@ type Message struct {
 
 type BodySegment struct {
 	MIMEType string
-	Content  []byte
 	Charset  string
+	Body     io.Reader
 }
 
 type Attachment struct {
 	Filename string
 	MIMEType string
-	Body     []byte
+	Body     io.Reader
+	Length   int64
 }
 
 type MailResponse struct {

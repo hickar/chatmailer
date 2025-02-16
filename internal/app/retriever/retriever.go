@@ -1,19 +1,20 @@
 package retriever
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
 	"mime"
 	"strings"
 
+	"github.com/hickar/chatmailer/internal/app/config"
+	"github.com/hickar/chatmailer/internal/app/mailer"
+
 	"github.com/emersion/go-imap/v2"
 	"github.com/emersion/go-imap/v2/imapclient"
 	"github.com/emersion/go-message/charset"
 	"github.com/emersion/go-message/mail"
-
-	"github.com/hickar/chatmailer/internal/app/config"
-	"github.com/hickar/chatmailer/internal/app/mailer"
 )
 
 type imapDialer interface {
@@ -130,7 +131,7 @@ func (r *imapRetriever) GetMail(cfg config.ClientConfig) (mailer.MailResponse, e
 		}
 
 		var message *mailer.Message
-		message, err = processMessage(msg, cfg)
+		message, err = parseMessage(msg, cfg)
 		if err != nil {
 			return mail, fmt.Errorf("process message: %w", err)
 		}
@@ -168,7 +169,7 @@ func getUIDSetBySearchCriteria(c *imapclient.Client, client config.ClientConfig)
 	return uidSet, nil
 }
 
-func processMessage(msg *imapclient.FetchMessageData, client config.ClientConfig) (*mailer.Message, error) {
+func parseMessage(msg *imapclient.FetchMessageData, client config.ClientConfig) (*mailer.Message, error) {
 	var (
 		uidSection  imapclient.FetchItemDataUID
 		bodySection imapclient.FetchItemDataBodySection
@@ -229,7 +230,7 @@ func processMessage(msg *imapclient.FetchMessageData, client config.ClientConfig
 
 		switch header := part.Header.(type) {
 		case *mail.InlineHeader:
-			bodyPart, err := processBodyPart(part)
+			bodyPart, err := parseBodyPart(part)
 			if err != nil {
 				return nil, fmt.Errorf("body segment parsing: %w", err)
 			}
@@ -240,9 +241,13 @@ func processMessage(msg *imapclient.FetchMessageData, client config.ClientConfig
 				break
 			}
 
-			attachment, err := processAttachment(part, header)
+			attachment, err := parseAttachment(part, header)
 			if err != nil {
 				return nil, fmt.Errorf("attachment parsing: %w", err)
+			}
+
+			if attachment.Length > int64(client.MaximumAttachmentsSize) {
+				break
 			}
 
 			message.Attachments = append(message.Attachments, attachment)
@@ -252,30 +257,47 @@ func processMessage(msg *imapclient.FetchMessageData, client config.ClientConfig
 	return message, nil
 }
 
-func processBodyPart(part *mail.Part) (mailer.BodySegment, error) {
-	var bodySegment mailer.BodySegment
-	var err error
+func parseBodyPart(part *mail.Part) (mailer.BodySegment, error) {
+	var segment mailer.BodySegment
 
-	bodySegment.Content, err = io.ReadAll(part.Body)
-	if err != nil {
-		return bodySegment, fmt.Errorf("read part: %w", err)
-	}
+	segment.Body = part.Body
 
 	headerValue := part.Header.Get("Content-Type")
 	mimeType, charset, ok := parseContentTypeHeader(headerValue)
 	if !ok {
-		return bodySegment, fmt.Errorf("parse 'Content-type' header with value %q", headerValue)
+		return segment, fmt.Errorf("parse 'Content-type' header with value %q", headerValue)
 	}
 
-	bodySegment.MIMEType = mimeType
-	bodySegment.Charset = charset
+	segment.MIMEType = mimeType
+	segment.Charset = charset
 
-	return bodySegment, nil
+	return segment, nil
 }
 
-func processAttachment(_ *mail.Part, _ *mail.AttachmentHeader) (mailer.Attachment, error) {
-	// TODO: implement later
-	return mailer.Attachment{}, nil
+func parseAttachment(part *mail.Part, header *mail.AttachmentHeader) (mailer.Attachment, error) {
+	var attachment mailer.Attachment
+	var err error
+
+	attachment.Filename, err = header.Filename()
+	if err != nil {
+		return attachment, fmt.Errorf("get filename: %w", err)
+	}
+
+	attachment.Length, err = readerLength(part.Body)
+	if err != nil {
+		return attachment, fmt.Errorf("get length: %w", err)
+	}
+
+	headerValue := part.Header.Get("Content-Type")
+	mimeType, _, ok := parseContentTypeHeader(headerValue)
+	if !ok {
+		return attachment, fmt.Errorf("parse 'Content-type' header with value %q", headerValue)
+	}
+
+	attachment.MIMEType = mimeType
+	attachment.Body = part.Body
+
+	return attachment, nil
 }
 
 func parseContentTypeHeader(header string) (string, string, bool) {
@@ -352,4 +374,8 @@ var fetchOptions = &imap.FetchOptions{
 	UID:          true,
 	BodySection:  []*imap.FetchItemBodySection{{}},
 	ModSeq:       true,
+}
+
+func readerLength(r io.Reader) (int64, error) {
+	return io.Copy(&bytes.Buffer{}, r)
 }
