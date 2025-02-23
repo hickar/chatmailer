@@ -1,20 +1,50 @@
 package forwarder
 
 import (
+	"strings"
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
-
 	"github.com/hickar/chatmailer/internal/app/mailer"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestRenderDefaultTemplate(t *testing.T) {
 	msg := &mailer.Message{
-		BodyParts: []mailer.BodySegment{},
-		Subject:   "Testing templates",
-		From:      []mailer.Address{{Address: "hickar@icloud.com"}},
-		To:        []mailer.Address{{Address: "hickar@protonmail.ch"}},
+		BodyParts: []mailer.BodySegment{
+			{
+				MIMEType: "text/plain",
+				Body:     strings.NewReader("MUST NOT BE RENDERED"),
+			},
+			{
+				MIMEType: "text/plain",
+				Body:     strings.NewReader("MUST NOT BE RENDERED"),
+			},
+			{
+				MIMEType: "text/html",
+				Body:     strings.NewReader("single line first part"),
+			},
+			{
+				MIMEType: "text/html",
+				Body:     strings.NewReader("multiple<br/>line<br/>second part"),
+			},
+			{
+				MIMEType: "text/html",
+				Body:     strings.NewReader("third part"),
+			},
+			{
+				MIMEType: "text/plain",
+				Body:     strings.NewReader("MUST NOT BE RENDERED"),
+			},
+			{
+				MIMEType: "text/plain",
+				Body:     strings.NewReader("MUST NOT BE RENDERED"),
+			},
+		},
+		Subject: "Testing templates",
+		From:    []mailer.Address{{Address: "hickar@icloud.com"}},
+		To:      []mailer.Address{{Address: "hickar@protonmail.ch"}},
 		BCC: []mailer.Address{
 			{Address: "recipient3@gmail.com"},
 			{Address: "recipient4@gmail.com"},
@@ -23,14 +53,22 @@ func TestRenderDefaultTemplate(t *testing.T) {
 		Date:    time.Date(1999, time.February, 25, 16, 16, 10, 0, time.Local),
 	}
 
-	expectedText := `*From*: [hickar@icloud\.com](mailto://hickar@icloud.com)
+	want := `*From*: [hickar@icloud\.com](mailto://hickar@icloud.com)
 *To*: [hickar@protonmail\.ch](mailto://hickar@protonmail.ch)
 *Reply To*: [secret\.recipient@gmail\.com](mailto://secret.recipient@gmail.com)
 *BCC*: [recipient3@gmail\.com](mailto://recipient3@gmail.com), [recipient4@gmail\.com](mailto://recipient4@gmail.com)
 *Subject*: Testing templates
-*Date*: Feb 25 1999 16:16:10`
+*Date*: Feb 25 1999 16:16:10
 
-	renderedText, err := renderTemplate(msg, "")
+>single line first part
+
+>multiple
+>line
+>second part
+
+>third part`
+
+	got, err := renderTemplate(msg, "")
 	assert.NoError(t, err)
-	assert.Equal(t, expectedText, renderedText)
+	assert.Equal(t, want, got)
 }

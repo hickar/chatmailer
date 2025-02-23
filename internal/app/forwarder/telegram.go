@@ -37,6 +37,8 @@ func NewTelegramForwarder(client *http.Client, cfg config.TelegramConfiguration,
 }
 
 func (tf *telegramForwarder) Forward(ctx context.Context, cfg config.ContactPointConfiguration, messages []*mailer.Message) error {
+	messages[0].BodyParts = messages[0].BodyParts[1:]
+
 	for _, message := range messages {
 		content, err := renderTemplate(message, cfg.Template)
 		if err != nil {

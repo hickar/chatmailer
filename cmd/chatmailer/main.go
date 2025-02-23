@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"flag"
-	"fmt"
 	"log"
 	"log/slog"
 	"net/http"
@@ -66,14 +65,16 @@ func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 
+	logger.InfoContext(ctx, "starting application")
+
 	if err = chatmailer.Start(ctx); err != nil {
 		if !errors.Is(err, context.Canceled) {
-			logger.Error(fmt.Sprintf("Application exited with error: %s", err), slog.String("module", "main"))
+			logger.ErrorContext(ctx, "application exited with error", slog.Any("error", err))
 			cancel()
 			//nolint:gocritic
 			os.Exit(1)
 		}
 	}
 
-	logger.Info("Application exited successfully")
+	logger.InfoContext(ctx, "application exited successfully")
 }

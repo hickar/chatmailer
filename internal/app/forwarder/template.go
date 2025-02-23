@@ -3,6 +3,7 @@ package forwarder
 import (
 	"bytes"
 	"fmt"
+	"hash/fnv"
 	"html"
 	"io"
 	"strings"
@@ -13,7 +14,7 @@ import (
 	"jaytaylor.com/html2text"
 )
 
-const defaultMessageTemplateString = `
+const defaultTemplateContent = `
 {{- define "addresses" -}}
 	{{- range $idx, $address := . -}}
 		{{ $escapedAddress := escapeMarkdown $address.Address }}
@@ -25,6 +26,14 @@ const defaultMessageTemplateString = `
 		{{- printf "[%s](mailto://%s)" $escapedAddress $address.Address -}}
 	{{- end -}}
 {{- end -}}
+
+{{ define "html-body" }}{{ range $part := . }}{{ if eq $part.MIMEType "text/html" }}
+{{ htmlstring $part.Body | escapeMarkdown | quoteMarkdown }}
+{{ end }}{{ end }}{{ end }}
+
+{{ define "text-body" }}{{ range $part := . }}{{ if eq $part.MIMEType "text/plain" }}
+{{ htmlstring $part.Body | escapeMarkdown | quoteMarkdown }}
+{{ end }}{{ end }}{{ end }}
 
 {{- if .From }}*From*: {{ template "addresses" .From }}
 {{ end }}
@@ -39,47 +48,72 @@ const defaultMessageTemplateString = `
 {{- if .Subject }}*Subject*: {{ escapeMarkdown .Subject }}
 {{ end }}
 {{- if .Date }}*Date*: {{ .Date.Format "Jan 02 2006 15:04:05" }}
-{{- end }}`
+{{ end }}
 
-var templateFuncs = template.FuncMap{
-	"escapeMarkdown":   escapeMarkdown,
-	"escapeHTML":       escapeHTML,
-	"join":             strings.Join,
-	"replace":          strings.Replace,
-	"replaceAll":       strings.ReplaceAll,
-	"upper":            strings.ToUpper,
-	"lower":            strings.ToLower,
-	"contains":         strings.Contains,
-	"trim":             strings.Trim,
-	"trimSpace":        strings.TrimSpace,
-	"bytestring":       bytesToString,
-	"htmlstring":       htmlToText,
-	"containsMIMEType": containsMIMEType,
-}
+{{- $hasParts := gt (len .BodyParts) 0 -}}
+{{- $hasHTMLParts := containsMIMEType .BodyParts "text/html" -}}
+{{- $hasTextParts := containsMIMEType .BodyParts "text/plain" -}}
 
-var defaultTemplate = template.Must(template.New("").Funcs(templateFuncs).Parse(defaultMessageTemplateString))
+{{ if and $hasParts $hasHTMLParts }}{{ template "html-body" .BodyParts }}
+{{ else if and $hasParts $hasTextParts }}{{ template "text-body" .BodyParts }}
+{{ else -}}TEXT MESSAGE CAN NOT BE REPRESENTED
+{{ end -}}`
 
-func renderTemplate(message *mailer.Message, templateStr string) (string, error) {
+var (
+	defaultTemplateFuncs = template.FuncMap{
+		"escapeMarkdown":   escapeMarkdown,
+		"escapeHTML":       escapeHTML,
+		"join":             strings.Join,
+		"replace":          strings.Replace,
+		"replaceAll":       strings.ReplaceAll,
+		"upper":            strings.ToUpper,
+		"lower":            strings.ToLower,
+		"contains":         strings.Contains,
+		"trim":             strings.Trim,
+		"trimSpace":        strings.TrimSpace,
+		"bytestring":       bytesToString,
+		"htmlstring":       htmlToText,
+		"containsMIMEType": containsMIMEType,
+		"quoteMarkdown":    quoteMarkdown,
+	}
+	defaultTemplateName = "default"
+	defaultTemplate     = template.Must(
+		template.
+			New(defaultTemplateName).
+			Funcs(defaultTemplateFuncs).
+			Parse(defaultTemplateContent),
+	)
+)
+
+func renderTemplate(message *mailer.Message, templateContent string) (string, error) {
 	var buf bytes.Buffer
 
-	if templateStr == "" {
+	switch {
+	case templateContent == "":
 		if err := defaultTemplate.Execute(&buf, message); err != nil {
 			return "", fmt.Errorf("default template rendering: %w", err)
 		}
+	default:
+		tmpl, err := template.
+			New(templateHash(templateContent)).
+			Funcs(defaultTemplateFuncs).
+			Parse(templateContent)
+		if err != nil {
+			return "", fmt.Errorf("custom template parsing: %w", err)
+		}
 
-		return buf.String(), nil
+		if err = tmpl.Execute(&buf, message); err != nil {
+			return "", fmt.Errorf("custom template rendering: %w", err)
+		}
 	}
 
-	tmpl, err := template.New("custom").Funcs(templateFuncs).Parse(templateStr)
-	if err != nil {
-		return "", fmt.Errorf("custom template parsing: %w", err)
-	}
+	// I don't know who the fuck designed standard Go template engine syntax,
+	// but I was not able to think of a way to remove newline at the very end.
+	return strings.TrimSpace(buf.String()), nil
+}
 
-	if err = tmpl.Execute(&buf, message); err != nil {
-		return "", fmt.Errorf("custom template rendering: %w", err)
-	}
-
-	return buf.String(), nil
+func templateHash(s string) string {
+	return string(fnv.New32().Sum([]byte(s)))
 }
 
 func escapeMarkdown(s string) string {
@@ -129,7 +163,25 @@ func containsMIMEType(parts []mailer.BodySegment, mimeType string) bool {
 		}
 	}
 
-	return true
+	return false
+}
+
+// quoteMarkdown wraps provided text in markdown 'quote' block
+// by prepending each line with '>' symbol.
+func quoteMarkdown(s string) string {
+	br := bytes.NewBufferString(s)
+	bw := bytes.NewBuffer(make([]byte, 0, len(s)))
+
+	for {
+		line, err := br.ReadString('\n')
+		if line == "" && err != nil {
+			break
+		}
+
+		_, _ = fmt.Fprintf(bw, ">%s", line)
+	}
+
+	return bw.String()
 }
 
 func escapeCharacters(s string, charMap map[rune]struct{}) string {

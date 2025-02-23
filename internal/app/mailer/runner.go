@@ -76,10 +76,11 @@ func (r *TaskRunner) Run(ctx context.Context) error {
 		client.LastUIDValidity = mail.LastUIDValidity
 		r.clientStore.Set(client.Login, client)
 
-		r.logger.InfoContext(ctx, fmt.Sprintf("received %d new messages received", len(mail.Messages)))
 		if len(mail.Messages) == 0 {
 			return nil
 		}
+
+		r.logger.InfoContext(ctx, fmt.Sprintf("received %d new messages received", len(mail.Messages)))
 
 		// Forward mail to each contact point specified for
 		// current client.
