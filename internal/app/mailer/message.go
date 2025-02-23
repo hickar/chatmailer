@@ -34,7 +34,7 @@ type Attachment struct {
 	ReadDate         time.Time
 }
 
-type MailResponse struct {
+type Mail struct {
 	LastUID         uint32
 	LastUIDValidity uint32
 	Messages        []*Message

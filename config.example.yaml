@@ -24,7 +24,9 @@ clients:
     # Not supported yet.
     include_images: false
     # Custom filters could be specified per each client.
-    filters: []
+    filters:
+      - "!SEEN && !JUNK"
+      - "FROM != 'some.suspicious@mail.com'"
     contact_points:
       - type: "telegram"
         tg_chat_id: your_chat_id

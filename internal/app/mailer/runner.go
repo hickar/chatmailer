@@ -20,7 +20,7 @@ type Forwarder interface {
 }
 
 type MailRetriever interface {
-	GetMail(context.Context, config.ClientConfig) (MailResponse, error)
+	GetMail(context.Context, config.ClientConfig) (Mail, error)
 }
 
 type TaskRunner struct {
