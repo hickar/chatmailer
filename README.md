@@ -10,7 +10,7 @@ Currently, only Telegram forwarder backend is supported.
 ## Setup local environment
 
 > Requirements:
-> [Go 1.23](https://go.dev/doc/devel/release) installed & [Docker engine](https://docs.docker.com/engine/) installed
+> [Go 1.24](https://go.dev/doc/devel/release) installed & [Docker engine](https://docs.docker.com/engine/) installed
 
 
 ```bash
