@@ -9,7 +9,5 @@ services:
     volumes:
       - ./config.yaml:/etc/chatmailer/config.yaml
     command: "-config /etc/chatmailer/config.yaml"
-    env_file:
-      - .env
     ports:
       - "8080:8081"
