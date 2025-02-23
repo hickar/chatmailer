@@ -9,6 +9,8 @@ import (
 	"text/template"
 
 	"github.com/hickar/chatmailer/internal/app/mailer"
+
+	"jaytaylor.com/html2text"
 )
 
 const defaultMessageTemplateString = `
@@ -40,17 +42,19 @@ const defaultMessageTemplateString = `
 {{- end }}`
 
 var templateFuncs = template.FuncMap{
-	"escapeMarkdown": escapeMarkdown,
-	"escapeHTML":     escapeHTML,
-	"join":           strings.Join,
-	"replace":        strings.Replace,
-	"replaceAll":     strings.ReplaceAll,
-	"upper":          strings.ToUpper,
-	"lower":          strings.ToLower,
-	"contains":       strings.Contains,
-	"trim":           strings.Trim,
-	"trimSpace":      strings.TrimSpace,
-	"bytestring":     bytesToString,
+	"escapeMarkdown":   escapeMarkdown,
+	"escapeHTML":       escapeHTML,
+	"join":             strings.Join,
+	"replace":          strings.Replace,
+	"replaceAll":       strings.ReplaceAll,
+	"upper":            strings.ToUpper,
+	"lower":            strings.ToLower,
+	"contains":         strings.Contains,
+	"trim":             strings.Trim,
+	"trimSpace":        strings.TrimSpace,
+	"bytestring":       bytesToString,
+	"htmlstring":       htmlToText,
+	"containsMIMEType": containsMIMEType,
 }
 
 var defaultTemplate = template.Must(template.New("").Funcs(templateFuncs).Parse(defaultMessageTemplateString))
@@ -101,6 +105,31 @@ func bytesToString(payload any) string {
 	}
 
 	return ""
+}
+
+var defaultHTMLToTextOpts = html2text.Options{TextOnly: true}
+
+func htmlToText(payload any) string {
+	var output string
+
+	switch v := payload.(type) {
+	case string:
+		output, _ = html2text.FromString(v, defaultHTMLToTextOpts)
+	case io.Reader:
+		output, _ = html2text.FromReader(v, defaultHTMLToTextOpts)
+	}
+
+	return output
+}
+
+func containsMIMEType(parts []mailer.BodySegment, mimeType string) bool {
+	for _, part := range parts {
+		if part.MIMEType == mimeType {
+			return true
+		}
+	}
+
+	return true
 }
 
 func escapeCharacters(s string, charMap map[rune]struct{}) string {
