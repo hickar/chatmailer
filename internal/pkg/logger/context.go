@@ -14,7 +14,7 @@ type ContextHandler struct {
 	slog.Handler
 }
 
-// NewContextHandler creates new ContextHandler instance
+// NewContextHandler creates new [ContextHandler] instance
 // with provider handler as it's base.
 func NewContextHandler(handler slog.Handler) *ContextHandler {
 	return &ContextHandler{Handler: handler}
@@ -30,7 +30,13 @@ func (h *ContextHandler) Handle(ctx context.Context, r slog.Record) error {
 	return h.Handler.Handle(ctx, r)
 }
 
-// WithAttrs creates new context.Context value
+// WithAttrs returns a new [ContextHandler] whose attributes consists
+// of h's attributes followed by attrs.
+func (h *ContextHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
+	return &ContextHandler{Handler: h.Handler.WithAttrs(attrs)}
+}
+
+// WithAttrs creates new [context.Context] value
 // with slog attributes stored within it.
 func WithAttrs(parent context.Context, attrs ...slog.Attr) context.Context {
 	if parent == nil {

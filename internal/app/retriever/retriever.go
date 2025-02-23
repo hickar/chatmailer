@@ -2,9 +2,11 @@ package retriever
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"mime"
 	"strings"
 	"time"
@@ -31,10 +33,14 @@ func (f ImapDialerFunc) DialTLS(address string, options *imapclient.Options) (*i
 
 type imapRetriever struct {
 	dialer ImapDialer
+	logger *slog.Logger
 }
 
-func NewIMAPRetriever(dialer ImapDialer) *imapRetriever {
-	return &imapRetriever{dialer: dialer}
+func NewIMAPRetriever(dialer ImapDialer, logger *slog.Logger) *imapRetriever {
+	return &imapRetriever{
+		dialer: dialer,
+		logger: logger,
+	}
 }
 
 // Retrieves emails from an IMAP server for specificied client.
@@ -74,8 +80,9 @@ func NewIMAPRetriever(dialer ImapDialer) *imapRetriever {
 // I suppose we need to enhance errors from all child functions and handle them in
 // GetMail with additional information and context for each error. It will greatly
 // improve debugging.GetMail.
-func (r *imapRetriever) GetMail(cfg config.ClientConfig) (mailer.MailResponse, error) {
+func (r *imapRetriever) GetMail(ctx context.Context, cfg config.ClientConfig) (mailer.MailResponse, error) {
 	// TODO: pass context.Context and handle cancellation with it.
+	// TODO: handle IMAP connection reuse.
 	var mail mailer.MailResponse
 
 	client, err := r.dialer.DialTLS(cfg.Address, &imapclient.Options{
@@ -125,7 +132,7 @@ func (r *imapRetriever) GetMail(cfg config.ClientConfig) (mailer.MailResponse, e
 
 	fetchCmd := client.Fetch(uidSet, fetchOptions)
 	defer func() {
-		err = errors.Join(err, fetchCmd.Close())
+		_ = fetchCmd.Close()
 	}()
 
 	for {
@@ -153,23 +160,17 @@ func (r *imapRetriever) GetMail(cfg config.ClientConfig) (mailer.MailResponse, e
 }
 
 func getUIDSetBySearchCriteria(c *imapclient.Client, client config.ClientConfig) (imap.UIDSet, error) {
-	searchCriteria, err := buildSearchCriteria(client.Filters, client.LastUIDNext)
+	criteria, err := buildSearchCriteria(client.Filters, client.LastUIDNext)
 	if err != nil {
 		return nil, fmt.Errorf("build search criteria: %w", err)
 	}
 
-	searchCmd, err := c.Search(searchCriteria, &imap.SearchOptions{
-		ReturnMin:   false,
-		ReturnMax:   false,
-		ReturnAll:   false,
-		ReturnCount: false,
-		ReturnSave:  false,
-	}).Wait()
+	cmd, err := c.Search(criteria, &imap.SearchOptions{}).Wait()
 	if err != nil {
 		return nil, fmt.Errorf("search: %w", err)
 	}
 
-	uidSet := imap.UIDSetNum(searchCmd.AllUIDs()...)
+	uidSet := imap.UIDSetNum(cmd.AllUIDs()...)
 	return uidSet, nil
 }
 
@@ -209,7 +210,7 @@ func parseMessage(msg *imapclient.FetchMessageData, client config.ClientConfig) 
 		return nil, fmt.Errorf("create reader: %w", err)
 	}
 	defer func() {
-		err = errors.Join(err, mr.Close())
+		_ = mr.Close()
 	}()
 
 	message := &mailer.Message{
@@ -377,8 +378,4 @@ var fetchOptions = &imap.FetchOptions{
 	UID:          true,
 	BodySection:  []*imap.FetchItemBodySection{{Peek: true}},
 	ModSeq:       true,
-}
-
-func readerLength(r io.Reader) (int64, error) {
-	return io.Copy(&bytes.Buffer{}, r)
 }

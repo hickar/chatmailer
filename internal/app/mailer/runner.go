@@ -7,6 +7,7 @@ import (
 	"log/slog"
 
 	"github.com/hickar/chatmailer/internal/app/config"
+	"github.com/hickar/chatmailer/internal/pkg/logger"
 )
 
 type ClientStore interface {
@@ -19,7 +20,7 @@ type Forwarder interface {
 }
 
 type MailRetriever interface {
-	GetMail(config.ClientConfig) (MailResponse, error)
+	GetMail(context.Context, config.ClientConfig) (MailResponse, error)
 }
 
 type TaskRunner struct {
@@ -52,23 +53,21 @@ func NewRunner(
 // to not re-execute parsing and forwarding for already handled emails next time.
 func (r *TaskRunner) Run(ctx context.Context) error {
 	for _, client := range r.cfg.Clients {
+		ctx := logger.WithAttrs(ctx, slog.String("client", client.Login))
+
 		// Retrieve current client state.
 		if stored, ok := r.clientStore.Get(client.Login); ok {
 			client = stored
 		}
 
-		logger := r.logger.With(slog.String("client", client.Login))
-		logger.Debug("starting email retrieval")
-
 		if len(client.ContactPoints) == 0 {
-			logger.Error("client has no contact points specified")
 			return errors.New("client has no contact points specified")
 		}
 
 		// Retrieve messages from client's mailbox.
-		mail, err := r.mailRetriever.GetMail(client)
+		mail, err := r.mailRetriever.GetMail(ctx, client)
 		if err != nil {
-			logger.Error(fmt.Sprintf("mail retrieval failed: %v", err))
+			r.logger.ErrorContext(ctx, "mail retrieval failed", slog.Any("error", err))
 			return fmt.Errorf("retrieve mail: %w", err)
 		}
 
@@ -77,7 +76,7 @@ func (r *TaskRunner) Run(ctx context.Context) error {
 		client.LastUIDValidity = mail.LastUIDValidity
 		r.clientStore.Set(client.Login, client)
 
-		logger.Info(fmt.Sprintf("received %d new messages received", len(mail.Messages)))
+		r.logger.InfoContext(ctx, fmt.Sprintf("received %d new messages received", len(mail.Messages)))
 		if len(mail.Messages) == 0 {
 			return nil
 		}

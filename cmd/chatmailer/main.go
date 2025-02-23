@@ -18,6 +18,7 @@ import (
 	"github.com/hickar/chatmailer/internal/app/mailer"
 	"github.com/hickar/chatmailer/internal/app/retriever"
 	"github.com/hickar/chatmailer/internal/pkg/kvstore"
+	xlogger "github.com/hickar/chatmailer/internal/pkg/logger"
 
 	"github.com/emersion/go-imap/v2/imapclient"
 )
@@ -31,14 +32,22 @@ func main() {
 		log.Fatalf("load configuration: %v", err)
 	}
 
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
-		Level: cfg.LogLevel,
-	}))
+	// Create logger with custom handler able
+	// to store log attributes within context.Context.
+	logger := slog.New(xlogger.NewContextHandler(
+		slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
+			Level:       cfg.LogLevel,
+			ReplaceAttr: xlogger.ReplaceAttr,
+		}),
+	))
 
 	runner := mailer.NewRunner(
 		cfg,
 		kvstore.New[string, config.ClientConfig](),
-		retriever.NewIMAPRetriever(retriever.ImapDialerFunc(imapclient.DialTLS)),
+		retriever.NewIMAPRetriever(
+			retriever.ImapDialerFunc(imapclient.DialTLS),
+			logger,
+		),
 		forwarder.NewTelegramForwarder(
 			http.DefaultClient,
 			cfg.Forwarders.Telegram,
@@ -54,7 +63,7 @@ func main() {
 		logger.With(slog.String("module", "remailer")),
 	)
 
-	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGABRT, syscall.SIGQUIT, syscall.SIGKILL, syscall.SIGTERM)
+	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 
 	if err = chatmailer.Start(ctx); err != nil {
