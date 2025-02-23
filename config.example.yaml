@@ -24,12 +24,10 @@ clients:
     # Not supported yet.
     include_images: false
     # Custom filters could be specified per each client.
-    filters:
-      - "!SEEN && !JUNK"
-      - "FROM != 'some.suspicious@mail.com'"
+    filters: []
     contact_points:
       - type: "telegram"
-        tg_chat_id: "your_chat_id"
+        tg_chat_id: your_chat_id
         silent_mode: true # Sends messages in silent mode (Optional, defaults to 'false').
         disable_forwarding: true # Forbid to forward messages sent by bot (Optional, defaults to 'false').
         # Mode for parsing entities in the message text (Optional).
